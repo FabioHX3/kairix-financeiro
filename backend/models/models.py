@@ -132,7 +132,7 @@ CATEGORIAS_PADRAO = [
 def criar_tabelas():
     """Cria todas as tabelas no banco de dados"""
     Base.metadata.create_all(bind=engine)
-    print("✅ Tabelas criadas com sucesso!")
+    print("[OK] Tabelas criadas com sucesso!")
 
 
 def inserir_categorias_padrao():
@@ -147,12 +147,12 @@ def inserir_categorias_padrao():
                 db.add(categoria)
 
             db.commit()
-            print(f"✅ {len(CATEGORIAS_PADRAO)} categorias padrão inseridas!")
+            print(f"[OK] {len(CATEGORIAS_PADRAO)} categorias padrao inseridas!")
         else:
-            print(f"ℹ️  Categorias padrão já existem ({categorias_existentes})")
+            print(f"[INFO] Categorias padrao ja existem ({categorias_existentes})")
 
     except Exception as e:
         db.rollback()
-        print(f"❌ Erro ao inserir categorias: {e}")
+        print(f"[ERRO] Erro ao inserir categorias: {e}")
     finally:
         db.close()

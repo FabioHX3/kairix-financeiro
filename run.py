@@ -12,34 +12,34 @@ def main():
     print("=" * 60)
     print()
 
-    print("📋 Verificando banco de dados...")
+    print("[*] Verificando banco de dados...")
 
     try:
         from backend.models import criar_tabelas, inserir_categorias_padrao
 
-        print("🔨 Criando/Verificando tabelas...")
+        print("[*] Criando/Verificando tabelas...")
         criar_tabelas()
 
-        print("📦 Inserindo categorias padrão...")
+        print("[*] Inserindo categorias padrao...")
         inserir_categorias_padrao()
 
-        print("✅ Banco de dados configurado!")
+        print("[OK] Banco de dados configurado!")
         print()
 
     except Exception as e:
-        print(f"❌ Erro ao configurar banco: {e}")
-        print("   Verifique as configurações no arquivo .env")
+        print(f"[ERRO] Erro ao configurar banco: {e}")
+        print("   Verifique as configuracoes no arquivo .env")
         sys.exit(1)
 
-    print("🚀 Iniciando servidor...")
+    print("[*] Iniciando servidor...")
     print()
 
     from backend.config import settings
     import uvicorn
 
-    print(f"   🌐 Interface Web: http://localhost:{settings.PORT}")
-    print(f"   📚 API Docs: http://localhost:{settings.PORT}/docs")
-    print(f"   💬 WhatsApp Webhook: http://localhost:{settings.PORT}/api/whatsapp/webhook")
+    print(f"   Interface Web: http://localhost:{settings.PORT}")
+    print(f"   API Docs: http://localhost:{settings.PORT}/docs")
+    print(f"   WhatsApp Webhook: http://localhost:{settings.PORT}/api/whatsapp/webhook")
     print()
     print("=" * 60)
     print()

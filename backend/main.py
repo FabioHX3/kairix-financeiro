@@ -101,7 +101,7 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
 
-    print(f"🚀 Iniciando Kairix Financeiro API em http://{settings.HOST}:{settings.PORT}")
+    print(f"[*] Iniciando Kairix Financeiro API em http://{settings.HOST}:{settings.PORT}")
 
     uvicorn.run(
         "backend.main:app",

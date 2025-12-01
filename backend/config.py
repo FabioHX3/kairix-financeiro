@@ -33,10 +33,23 @@ class Settings:
     # OpenAI (Whisper)
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
-    # Evolution API (WhatsApp)
-    EVOLUTION_URL: str = os.getenv("EVOLUTION_URL", "http://localhost:8055")
-    EVOLUTION_API_KEY: str = os.getenv("EVOLUTION_API_KEY", "")
-    EVOLUTION_INSTANCE: str = os.getenv("EVOLUTION_INSTANCE", "")
+    # WhatsApp API (Evolution ou similar)
+    WHATSAPP_API_URL: str = os.getenv("WHATSAPP_API_URL", "")
+    WHATSAPP_API_KEY: str = os.getenv("WHATSAPP_API_KEY", "")
+    WHATSAPP_INSTANCE: str = os.getenv("WHATSAPP_INSTANCE", "")
+
+    # Aliases para compatibilidade
+    @property
+    def EVOLUTION_URL(self):
+        return self.WHATSAPP_API_URL
+
+    @property
+    def EVOLUTION_API_KEY(self):
+        return self.WHATSAPP_API_KEY
+
+    @property
+    def EVOLUTION_INSTANCE(self):
+        return self.WHATSAPP_INSTANCE
 
 
 settings = Settings()
