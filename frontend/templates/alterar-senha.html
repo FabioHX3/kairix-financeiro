@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alterar Senha - Kairix Financeiro</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container navbar-content">
+            <div class="navbar-brand">
+                <img src="/static/assets/logo.png" alt="Kairix Logo">
+            </div>
+            <div class="navbar-menu">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/receitas">Receitas</a>
+                <a href="/despesas">Despesas</a>
+                <a href="/relatorios">Relatórios</a>
+                <a href="/familia">Família</a>
+                <a href="/meus-dados">Meus Dados</a>
+                <a href="/alterar-senha" class="active">Alterar Senha</a>
+                <button class="btn btn-secondary" onclick="AuthService.logout()">Sair</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container" style="padding: 40px 20px;">
+        <h1>🔐 Alterar Senha</h1>
+
+        <div class="card" style="max-width: 600px; margin: 0 auto;">
+            <form id="formAlterarSenha">
+                <div class="form-group">
+                    <label>Senha Atual</label>
+                    <div style="position: relative;">
+                        <input type="password" id="senhaAtual" class="form-control" required style="padding-right: 40px;">
+                        <button type="button" onclick="togglePassword('senhaAtual', this)" class="toggle-password-btn">
+                            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                        </button>
+                        <style>
+                            .toggle-password-btn {
+                                position: absolute;
+                                right: 10px;
+                                top: 50%;
+                                transform: translateY(-50%);
+                                background: none;
+                                border: none;
+                                cursor: pointer;
+                                padding: 5px;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                transition: opacity 0.3s;
+                            }
+                            .toggle-password-btn:hover {
+                                opacity: 0.7;
+                            }
+                            .eye-icon {
+                                width: 20px;
+                                height: 20px;
+                                color: rgba(255, 255, 255, 0.6);
+                                transition: color 0.3s;
+                            }
+                            .toggle-password-btn.active .eye-icon {
+                                color: var(--finance-blue);
+                            }
+                        </style>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Nova Senha</label>
+                    <div style="position: relative;">
+                        <input type="password" id="senhaNova" class="form-control" required minlength="6" style="padding-right: 40px;">
+                        <button type="button" onclick="togglePassword('senhaNova', this)" class="toggle-password-btn">
+                            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                        </button>
+                    </div>
+                    <small style="color: rgba(255, 255, 255, 0.6); display: block; margin-top: 5px;">
+                        Mínimo de 6 caracteres
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label>Confirmar Nova Senha</label>
+                    <div style="position: relative;">
+                        <input type="password" id="senhaConfirmar" class="form-control" required minlength="6" style="padding-right: 40px;">
+                        <button type="button" onclick="togglePassword('senhaConfirmar', this)" class="toggle-password-btn">
+                            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Alterar Senha</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/auth.js"></script>
+    <script>
+        requireAuth();
+
+        function togglePassword(inputId, button) {
+            const input = document.getElementById(inputId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                button.classList.add('active');
+            } else {
+                input.type = 'password';
+                button.classList.remove('active');
+            }
+        }
+
+        document.getElementById('formAlterarSenha').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const senhaAtual = document.getElementById('senhaAtual').value;
+            const senhaNova = document.getElementById('senhaNova').value;
+            const senhaConfirmar = document.getElementById('senhaConfirmar').value;
+
+            // Valida se as senhas novas coincidem
+            if (senhaNova !== senhaConfirmar) {
+                alert('As senhas novas não coincidem!');
+                return;
+            }
+
+            // Valida tamanho mínimo
+            if (senhaNova.length < 6) {
+                alert('A nova senha deve ter no mínimo 6 caracteres!');
+                return;
+            }
+
+            try {
+                const response = await fetchAPI('/api/auth/alterar-senha', {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        senha_atual: senhaAtual,
+                        senha_nova: senhaNova
+                    })
+                });
+
+                if (response.ok) {
+                    alert('Senha alterada com sucesso!');
+                    document.getElementById('formAlterarSenha').reset();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Erro ao alterar senha');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                alert('Erro ao alterar senha');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,158 @@
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, ForeignKey, Enum
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+from datetime import datetime
+import enum
+
+from backend.core.database import engine, SessionLocal
+
+Base = declarative_base()
+
+
+class TipoTransacao(str, enum.Enum):
+    RECEITA = "receita"
+    DESPESA = "despesa"
+
+
+class StatusTransacao(str, enum.Enum):
+    PENDENTE = "pendente"
+    CONFIRMADA = "confirmada"
+    CANCELADA = "cancelada"
+
+
+class OrigemRegistro(str, enum.Enum):
+    WHATSAPP_TEXTO = "whatsapp_texto"
+    WHATSAPP_AUDIO = "whatsapp_audio"
+    WHATSAPP_IMAGEM = "whatsapp_imagem"
+    WEB = "web"
+
+
+class Usuario(Base):
+    __tablename__ = "usuarios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String(255), nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    senha_hash = Column(String(255), nullable=False)
+    telefone = Column(String(20), unique=True, index=True)
+    whatsapp = Column(String(20), unique=True, index=True)
+    ativo = Column(Boolean, default=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    transacoes = relationship("Transacao", back_populates="usuario")
+    categorias = relationship("Categoria", back_populates="usuario")
+    membros_familia = relationship("MembroFamilia", back_populates="usuario")
+
+
+class MembroFamilia(Base):
+    __tablename__ = "membros_familia"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    nome = Column(String(255), nullable=False)
+    telefone = Column(String(20), nullable=False, index=True)
+    ativo = Column(Boolean, default=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    usuario = relationship("Usuario", back_populates="membros_familia")
+    transacoes = relationship("Transacao", back_populates="membro_familia")
+
+
+class Categoria(Base):
+    __tablename__ = "categorias"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    nome = Column(String(100), nullable=False)
+    tipo = Column(Enum(TipoTransacao), nullable=False)
+    cor = Column(String(7), default="#0EA5E9")
+    icone = Column(String(50), default="💰")
+    padrao = Column(Boolean, default=False)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    # Relacionamentos
+    usuario = relationship("Usuario", back_populates="categorias")
+    transacoes = relationship("Transacao", back_populates="categoria")
+
+
+class Transacao(Base):
+    __tablename__ = "transacoes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    categoria_id = Column(Integer, ForeignKey("categorias.id"), nullable=True)
+    membro_familia_id = Column(Integer, ForeignKey("membros_familia.id"), nullable=True)
+    tipo = Column(Enum(TipoTransacao), nullable=False)
+    valor = Column(Float, nullable=False)
+    descricao = Column(Text)
+    data_transacao = Column(DateTime, nullable=False)
+    status = Column(Enum(StatusTransacao), default=StatusTransacao.CONFIRMADA)
+    origem = Column(Enum(OrigemRegistro), nullable=False)
+
+    # Campos WhatsApp
+    mensagem_original = Column(Text)
+    arquivo_url = Column(String(500))
+    confianca_ia = Column(Float)
+
+    # Metadados
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    usuario = relationship("Usuario", back_populates="transacoes")
+    categoria = relationship("Categoria", back_populates="transacoes")
+    membro_familia = relationship("MembroFamilia", back_populates="transacoes")
+
+
+# Categorias padrão
+CATEGORIAS_PADRAO = [
+    # Despesas
+    {"nome": "Alimentação", "tipo": TipoTransacao.DESPESA, "icone": "🍽️", "cor": "#F59E0B"},
+    {"nome": "Transporte", "tipo": TipoTransacao.DESPESA, "icone": "🚗", "cor": "#3B82F6"},
+    {"nome": "Saúde", "tipo": TipoTransacao.DESPESA, "icone": "🏥", "cor": "#EF4444"},
+    {"nome": "Educação", "tipo": TipoTransacao.DESPESA, "icone": "📚", "cor": "#8B5CF6"},
+    {"nome": "Lazer", "tipo": TipoTransacao.DESPESA, "icone": "🎮", "cor": "#EC4899"},
+    {"nome": "Casa", "tipo": TipoTransacao.DESPESA, "icone": "🏠", "cor": "#10B981"},
+    {"nome": "Vestuário", "tipo": TipoTransacao.DESPESA, "icone": "👕", "cor": "#6366F1"},
+    {"nome": "Outros", "tipo": TipoTransacao.DESPESA, "icone": "💸", "cor": "#6B7280"},
+    # Receitas
+    {"nome": "Salário", "tipo": TipoTransacao.RECEITA, "icone": "💼", "cor": "#10B981"},
+    {"nome": "Freelance", "tipo": TipoTransacao.RECEITA, "icone": "💻", "cor": "#0EA5E9"},
+    {"nome": "Investimentos", "tipo": TipoTransacao.RECEITA, "icone": "📈", "cor": "#F59E0B"},
+    {"nome": "Vendas", "tipo": TipoTransacao.RECEITA, "icone": "🛒", "cor": "#8B5CF6"},
+    {"nome": "Aluguel", "tipo": TipoTransacao.RECEITA, "icone": "🏡", "cor": "#EC4899"},
+    {"nome": "Outros", "tipo": TipoTransacao.RECEITA, "icone": "💰", "cor": "#6B7280"},
+]
+
+
+def criar_tabelas():
+    """Cria todas as tabelas no banco de dados"""
+    Base.metadata.create_all(bind=engine)
+    print("✅ Tabelas criadas com sucesso!")
+
+
+def inserir_categorias_padrao():
+    """Insere categorias padrão no banco"""
+    db = SessionLocal()
+    try:
+        categorias_existentes = db.query(Categoria).filter(Categoria.padrao == True).count()
+
+        if categorias_existentes == 0:
+            for cat_data in CATEGORIAS_PADRAO:
+                categoria = Categoria(**cat_data, padrao=True, usuario_id=None)
+                db.add(categoria)
+
+            db.commit()
+            print(f"✅ {len(CATEGORIAS_PADRAO)} categorias padrão inseridas!")
+        else:
+            print(f"ℹ️  Categorias padrão já existem ({categorias_existentes})")
+
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Erro ao inserir categorias: {e}")
+    finally:
+        db.close()

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Kairix Financeiro</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(0, 217, 95, 0.1));
+        }
+
+        .login-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            width: 100%;
+            max-width: 450px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .login-header img {
+            height: 80px;
+            margin-bottom: 20px;
+        }
+
+        .login-header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--finance-blue), var(--success-green));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .login-header p {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .btn-full {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.1rem;
+        }
+
+        .divider {
+            text-align: center;
+            margin: 20px 0;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .signup-link {
+            text-align: center;
+            margin-top: 20px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .signup-link a {
+            color: var(--finance-blue);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .signup-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <img src="/static/assets/logo.png" alt="Kairix Logo">
+                <h1>Bem-vindo de Volta</h1>
+                <p>Acesse sua conta Kairix Financeiro</p>
+            </div>
+
+            <div id="alert"></div>
+
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input
+                        type="email"
+                        id="email"
+                        class="form-control"
+                        placeholder="seu@email.com"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="senha">Senha</label>
+                    <div style="position: relative;">
+                        <input
+                            type="password"
+                            id="senha"
+                            class="form-control"
+                            placeholder="••••••••"
+                            required
+                            style="padding-right: 40px;"
+                        >
+                        <button type="button" onclick="togglePassword('senha')"
+                                style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem;">
+                            👁️
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-full">
+                    Entrar
+                </button>
+            </form>
+
+            <div class="divider">OU</div>
+
+            <div class="signup-link">
+                Não tem uma conta? <a href="/cadastro">Cadastre-se aqui</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/auth.js"></script>
+    <script>
+        // Redireciona se já estiver autenticado
+        redirectIfAuthenticated();
+
+        function togglePassword(inputId) {
+            const input = document.getElementById(inputId);
+            if (input.type === 'password') {
+                input.type = 'text';
+            } else {
+                input.type = 'password';
+            }
+        }
+
+        const loginForm = document.getElementById('loginForm');
+        const alertDiv = document.getElementById('alert');
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value;
+            const senha = document.getElementById('senha').value;
+
+            // Limpa alertas
+            alertDiv.innerHTML = '';
+
+            try {
+                const btn = loginForm.querySelector('button[type="submit"]');
+                btn.disabled = true;
+                btn.textContent = 'Entrando...';
+
+                await AuthService.login(email, senha);
+
+                // Sucesso - redireciona
+                window.location.href = '/dashboard';
+
+            } catch (error) {
+                alertDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        ${error.message}
+                    </div>
+                `;
+
+                const btn = loginForm.querySelector('button[type="submit"]');
+                btn.disabled = false;
+                btn.textContent = 'Entrar';
+            }
+        });
+    </script>
+</body>
+</html>

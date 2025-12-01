@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receitas - Kairix Financeiro</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container navbar-content">
+            <div class="navbar-brand">
+                <img src="/static/assets/logo.png" alt="Kairix Logo">
+            </div>
+            <div class="navbar-menu">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/receitas" class="active">Receitas</a>
+                <a href="/despesas">Despesas</a>
+                <a href="/relatorios">Relatórios</a>
+                <a href="/familia">Família</a>
+                <a href="/meus-dados">Meus Dados</a>
+                <a href="/alterar-senha">Alterar Senha</a>
+                <button class="btn btn-secondary" onclick="AuthService.logout()">Sair</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container" style="padding: 40px 20px;">
+        <div class="d-flex justify-between align-center mb-3">
+            <h1>💰 Receitas</h1>
+            <button class="btn btn-success" onclick="abrirModal()">+ Nova Receita</button>
+        </div>
+
+        <div class="card">
+            <div class="d-flex gap-2 mb-2" style="align-items: center;">
+                <label style="color: rgba(255, 255, 255, 0.8);">📅 Período:</label>
+                <input type="date" id="dataInicio" class="form-control" style="max-width: 170px;" placeholder="Data Início">
+                <label style="color: rgba(255, 255, 255, 0.6);">até</label>
+                <input type="date" id="dataFim" class="form-control" style="max-width: 170px;" placeholder="Data Fim">
+                <button class="btn btn-primary" onclick="filtrar()">🔍 Filtrar</button>
+            </div>
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Descrição</th>
+                        <th>Categoria</th>
+                        <th>Valor</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="listaReceitas">
+                    <tr><td colspan="5" class="text-center"><div class="spinner"></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Nova Receita</h2>
+                <button class="modal-close" onclick="fecharModal()">&times;</button>
+            </div>
+            <form id="form">
+                <div class="form-group">
+                    <label>Valor</label>
+                    <input type="number" id="valor" class="form-control" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Categoria</label>
+                    <select id="categoria" class="form-control" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Membro da Família (opcional)</label>
+                    <select id="membroFamilia" class="form-control">
+                        <option value="">Eu mesmo</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Descrição</label>
+                    <textarea id="descricao" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Data</label>
+                    <input type="date" id="data" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>📎 Anexo (Foto/PDF - Opcional)</label>
+                    <input type="file" id="arquivo" class="form-control" accept="image/*,.pdf">
+                    <small style="color: rgba(255, 255, 255, 0.6); display: block; margin-top: 5px;">
+                        Anexe comprovante de recebimento (máx. 5MB)
+                    </small>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-success" style="flex: 1;">Salvar</button>
+                    <button type="button" class="btn btn-secondary" onclick="fecharModal()">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/auth.js"></script>
+    <script>
+        requireAuth();
+        let categorias = [];
+        let membrosFamilia = [];
+
+        async function init() {
+            await carregarCategorias();
+            await carregarMembrosFamilia();
+            await listar();
+        }
+
+        async function carregarCategorias() {
+            const response = await fetchAPI('/api/categorias?tipo=receita');
+            categorias = await response.json();
+            const select = document.getElementById('categoria');
+            select.innerHTML = categorias.map(c =>
+                `<option value="${c.id}">${c.icone} ${c.nome}</option>`
+            ).join('');
+        }
+
+        async function carregarMembrosFamilia() {
+            try {
+                const response = await fetchAPI('/api/familia');
+                membrosFamilia = await response.json();
+                const select = document.getElementById('membroFamilia');
+                select.innerHTML = '<option value="">Eu mesmo</option>' +
+                    membrosFamilia.filter(m => m.ativo).map(m =>
+                        `<option value="${m.id}">${m.nome}</option>`
+                    ).join('');
+            } catch (error) {
+                console.error('Erro ao carregar membros:', error);
+            }
+        }
+
+        async function listar() {
+            const response = await fetchAPI('/api/transacoes?tipo=receita&limit=100');
+            const receitas = await response.json();
+
+            const tbody = document.getElementById('listaReceitas');
+            tbody.innerHTML = receitas.length === 0
+                ? '<tr><td colspan="5" class="text-center">Nenhuma receita encontrada</td></tr>'
+                : receitas.map(r => `
+                    <tr>
+                        <td>${new Date(r.data_transacao).toLocaleDateString('pt-BR')}</td>
+                        <td>${r.descricao || '-'}</td>
+                        <td>${r.categoria ? r.categoria.icone + ' ' + r.categoria.nome : '-'}</td>
+                        <td style="color: var(--success-green)">
+                            + ${new Intl.NumberFormat('pt-BR', {style: 'currency', currency: 'BRL'}).format(r.valor)}
+                        </td>
+                        <td>
+                            <button class="btn btn-primary" style="padding: 5px 10px; font-size: 0.85rem; margin-right: 5px;"
+                                onclick="editar(${r.id})">Editar</button>
+                            <button class="btn btn-danger" style="padding: 5px 10px; font-size: 0.85rem;"
+                                onclick="deletar(${r.id})">Excluir</button>
+                        </td>
+                    </tr>
+                `).join('');
+        }
+
+        async function filtrar() {
+            const dataInicio = document.getElementById('dataInicio').value;
+            const dataFim = document.getElementById('dataFim').value;
+
+            let url = '/api/transacoes?tipo=receita&limit=100';
+            if (dataInicio) url += `&data_inicio=${dataInicio}`;
+            if (dataFim) url += `&data_fim=${dataFim}`;
+
+            const response = await fetchAPI(url);
+            const receitas = await response.json();
+
+            const tbody = document.getElementById('listaReceitas');
+            tbody.innerHTML = receitas.length === 0
+                ? '<tr><td colspan="5" class="text-center">Nenhuma receita encontrada</td></tr>'
+                : receitas.map(r => `
+                    <tr>
+                        <td>${new Date(r.data_transacao).toLocaleDateString('pt-BR')}</td>
+                        <td>${r.descricao || '-'}</td>
+                        <td>${r.categoria ? r.categoria.icone + ' ' + r.categoria.nome : '-'}</td>
+                        <td style="color: var(--success-green)">
+                            + ${new Intl.NumberFormat('pt-BR', {style: 'currency', currency: 'BRL'}).format(r.valor)}
+                        </td>
+                        <td>
+                            <button class="btn btn-primary" style="padding: 5px 10px; font-size: 0.85rem; margin-right: 5px;"
+                                onclick="editar(${r.id})">Editar</button>
+                            <button class="btn btn-danger" style="padding: 5px 10px; font-size: 0.85rem;"
+                                onclick="deletar(${r.id})">Excluir</button>
+                        </td>
+                    </tr>
+                `).join('');
+        }
+
+        function abrirModal() {
+            document.getElementById('data').valueAsDate = new Date();
+            document.getElementById('modal').classList.add('show');
+        }
+
+        function fecharModal() {
+            document.getElementById('modal').classList.remove('show');
+            document.getElementById('form').reset();
+            transacaoEditando = null;
+            document.querySelector('.modal-title').textContent = 'Nova Receita';
+            document.querySelector('button[type="submit"]').textContent = 'Salvar';
+        }
+
+        document.getElementById('form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const membroId = document.getElementById('membroFamilia').value;
+
+            const dados = {
+                tipo: 'receita',
+                valor: parseFloat(document.getElementById('valor').value),
+                categoria_id: parseInt(document.getElementById('categoria').value),
+                descricao: document.getElementById('descricao').value,
+                data_transacao: document.getElementById('data').value + 'T00:00:00',
+                origem: 'web'
+            };
+
+            if (membroId) {
+                dados.membro_familia_id = parseInt(membroId);
+            }
+
+            let response;
+            if (transacaoEditando) {
+                // Edição
+                response = await fetchAPI(`/api/transacoes/${transacaoEditando}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(dados)
+                });
+            } else {
+                // Criação
+                response = await fetchAPI('/api/transacoes', {
+                    method: 'POST',
+                    body: JSON.stringify(dados)
+                });
+            }
+
+            if (response.ok) {
+                fecharModal();
+                await listar();
+            }
+        });
+
+        let transacaoEditando = null;
+
+        async function editar(id) {
+            const response = await fetchAPI(`/api/transacoes/${id}`);
+            const transacao = await response.json();
+
+            transacaoEditando = id;
+
+            document.getElementById('valor').value = transacao.valor;
+            document.getElementById('categoria').value = transacao.categoria_id;
+            document.getElementById('descricao').value = transacao.descricao || '';
+            document.getElementById('data').value = transacao.data_transacao.split('T')[0];
+
+            document.querySelector('.modal-title').textContent = 'Editar Receita';
+            document.querySelector('button[type="submit"]').textContent = 'Atualizar';
+
+            abrirModal();
+        }
+
+        async function deletar(id) {
+            if (!confirm('Deseja realmente excluir esta receita?')) return;
+
+            const response = await fetchAPI(`/api/transacoes/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                await listar();
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

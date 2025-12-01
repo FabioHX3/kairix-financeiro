@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro - Kairix Financeiro</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .cadastro-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(0, 217, 95, 0.1));
+            padding: 40px 20px;
+        }
+
+        .cadastro-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            width: 100%;
+            max-width: 500px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .cadastro-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .cadastro-header img {
+            height: 70px;
+            margin-bottom: 15px;
+        }
+
+        .cadastro-header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--finance-blue), var(--success-green));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .cadastro-header p {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .btn-full {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.1rem;
+        }
+
+        .login-link {
+            text-align: center;
+            margin-top: 20px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .login-link a {
+            color: var(--finance-blue);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .login-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="cadastro-container">
+        <div class="cadastro-card">
+            <div class="cadastro-header">
+                <img src="/static/assets/logo.png" alt="Kairix Logo">
+                <h1>Criar Conta</h1>
+                <p>Comece a gerenciar suas finanças com IA</p>
+            </div>
+
+            <div id="alert"></div>
+
+            <form id="cadastroForm">
+                <div class="form-group">
+                    <label for="nome">Nome Completo</label>
+                    <input
+                        type="text"
+                        id="nome"
+                        class="form-control"
+                        placeholder="Seu nome"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input
+                        type="email"
+                        id="email"
+                        class="form-control"
+                        placeholder="seu@email.com"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="whatsapp">WhatsApp (com DDD)</label>
+                    <input
+                        type="tel"
+                        id="whatsapp"
+                        class="form-control"
+                        placeholder="11999999999"
+                        required
+                    >
+                    <small style="color: rgba(255, 255, 255, 0.6);">
+                        Usado para receber e enviar transações
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="senha">Senha</label>
+                    <div style="position: relative;">
+                        <input
+                            type="password"
+                            id="senha"
+                            class="form-control"
+                            placeholder="Mínimo 6 caracteres"
+                            required
+                            minlength="6"
+                            style="padding-right: 40px;"
+                        >
+                        <button type="button" onclick="togglePassword('senha')"
+                                style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem;">
+                            👁️
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmarSenha">Confirmar Senha</label>
+                    <div style="position: relative;">
+                        <input
+                            type="password"
+                            id="confirmarSenha"
+                            class="form-control"
+                            placeholder="Digite a senha novamente"
+                            required
+                            style="padding-right: 40px;"
+                        >
+                        <button type="button" onclick="togglePassword('confirmarSenha')"
+                                style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem;">
+                            👁️
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-success btn-full">
+                    Criar Conta
+                </button>
+            </form>
+
+            <div class="login-link">
+                Já tem uma conta? <a href="/login">Faça login</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/auth.js"></script>
+    <script>
+        // Redireciona se já estiver autenticado
+        redirectIfAuthenticated();
+
+        function togglePassword(inputId) {
+            const input = document.getElementById(inputId);
+            if (input.type === 'password') {
+                input.type = 'text';
+            } else {
+                input.type = 'password';
+            }
+        }
+
+        const cadastroForm = document.getElementById('cadastroForm');
+        const alertDiv = document.getElementById('alert');
+
+        cadastroForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const nome = document.getElementById('nome').value;
+            const email = document.getElementById('email').value;
+            const whatsapp = document.getElementById('whatsapp').value;
+            const senha = document.getElementById('senha').value;
+            const confirmarSenha = document.getElementById('confirmarSenha').value;
+
+            // Limpa alertas
+            alertDiv.innerHTML = '';
+
+            // Validações
+            if (senha !== confirmarSenha) {
+                alertDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        As senhas não coincidem
+                    </div>
+                `;
+                return;
+            }
+
+            if (senha.length < 6) {
+                alertDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        A senha deve ter no mínimo 6 caracteres
+                    </div>
+                `;
+                return;
+            }
+
+            try {
+                const btn = cadastroForm.querySelector('button[type="submit"]');
+                btn.disabled = true;
+                btn.textContent = 'Criando conta...';
+
+                await AuthService.cadastrar({
+                    nome,
+                    email,
+                    whatsapp,
+                    senha
+                });
+
+                // Sucesso - mostra mensagem e redireciona
+                alertDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        Conta criada com sucesso! Redirecionando...
+                    </div>
+                `;
+
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 1500);
+
+            } catch (error) {
+                alertDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        ${error.message}
+                    </div>
+                `;
+
+                const btn = cadastroForm.querySelector('button[type="submit"]');
+                btn.disabled = false;
+                btn.textContent = 'Criar Conta';
+            }
+        });
+    </script>
+</body>
+</html>

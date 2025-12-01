@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Família - Kairix Financeiro</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container navbar-content">
+            <div class="navbar-brand">
+                <img src="/static/assets/logo.png" alt="Kairix Logo">
+            </div>
+            <div class="navbar-menu">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/receitas">Receitas</a>
+                <a href="/despesas">Despesas</a>
+                <a href="/relatorios">Relatórios</a>
+                <a href="/familia" class="active">Família</a>
+                <a href="/meus-dados">Meus Dados</a>
+                <a href="/alterar-senha">Alterar Senha</a>
+                <button class="btn btn-secondary" onclick="AuthService.logout()">Sair</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container" style="padding: 40px 20px;">
+        <div class="d-flex justify-between align-center mb-3">
+            <div>
+                <h1>👨‍👩‍👧‍👦 Controle Familiar</h1>
+                <p style="color: rgba(255, 255, 255, 0.7);">
+                    Cadastre os membros da família para que eles possam registrar despesas pelo WhatsApp
+                </p>
+            </div>
+            <button class="btn btn-success" onclick="abrirModal()">+ Novo Membro</button>
+        </div>
+
+        <div class="card">
+            <h3 class="mb-2">Membros da Família</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Telefone</th>
+                        <th>Status</th>
+                        <th>Data Cadastro</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="listaMembros">
+                    <tr><td colspan="5" class="text-center"><div class="spinner"></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal Novo/Editar Membro -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Novo Membro da Família</h2>
+                <button class="modal-close" onclick="fecharModal()">&times;</button>
+            </div>
+            <form id="form">
+                <div class="form-group">
+                    <label>Nome Completo</label>
+                    <input type="text" id="nome" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Telefone (com DDD)</label>
+                    <input type="tel" id="telefone" class="form-control" placeholder="(99) 99999-9999" maxlength="15" required>
+                    <small style="color: rgba(255, 255, 255, 0.6); display: block; margin-top: 5px;">
+                        Este telefone poderá registrar transações via WhatsApp
+                    </small>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-success" style="flex: 1;">Salvar</button>
+                    <button type="button" class="btn btn-secondary" onclick="fecharModal()">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/auth.js"></script>
+    <script>
+        requireAuth();
+        let membroEditando = null;
+
+        async function init() {
+            await listar();
+            aplicarMascaraTelefone();
+        }
+
+        // Função para aplicar máscara de telefone brasileiro
+        function aplicarMascaraTelefone() {
+            const telefoneInput = document.getElementById('telefone');
+
+            function mascaraTelefone(valor) {
+                valor = valor.replace(/\D/g, ''); // Remove tudo que não é dígito
+
+                if (valor.length <= 10) {
+                    // Formato: (99) 9999-9999
+                    valor = valor.replace(/^(\d{2})(\d)/g, '($1) $2');
+                    valor = valor.replace(/(\d)(\d{4})$/, '$1-$2');
+                } else {
+                    // Formato: (99) 99999-9999
+                    valor = valor.replace(/^(\d{2})(\d)/g, '($1) $2');
+                    valor = valor.replace(/(\d)(\d{4})$/, '$1-$2');
+                }
+
+                return valor;
+            }
+
+            telefoneInput.addEventListener('input', function(e) {
+                e.target.value = mascaraTelefone(e.target.value);
+            });
+        }
+
+        async function listar() {
+            const response = await fetchAPI('/api/familia');
+            const membros = await response.json();
+
+            const tbody = document.getElementById('listaMembros');
+            tbody.innerHTML = membros.length === 0
+                ? '<tr><td colspan="5" class="text-center">Nenhum membro cadastrado. Adicione membros para permitir que registrem transações pelo WhatsApp.</td></tr>'
+                : membros.map(m => `
+                    <tr>
+                        <td>${m.nome}</td>
+                        <td>${formatarTelefone(m.telefone)}</td>
+                        <td>
+                            <span class="badge ${m.ativo ? 'badge-confirmada' : 'badge-pendente'}">
+                                ${m.ativo ? 'Ativo' : 'Inativo'}
+                            </span>
+                        </td>
+                        <td>${new Date(m.criado_em).toLocaleDateString('pt-BR')}</td>
+                        <td>
+                            <button class="btn btn-primary" style="padding: 5px 10px; font-size: 0.85rem; margin-right: 5px;"
+                                onclick="editar(${m.id})">Editar</button>
+                            <button class="btn btn-danger" style="padding: 5px 10px; font-size: 0.85rem;"
+                                onclick="deletar(${m.id})">Remover</button>
+                        </td>
+                    </tr>
+                `).join('');
+        }
+
+        function formatarTelefone(telefone) {
+            if (!telefone) return '-';
+
+            telefone = telefone.replace(/\D/g, '');
+
+            if (telefone.length === 11) {
+                return telefone.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+            } else if (telefone.length === 10) {
+                return telefone.replace(/^(\d{2})(\d{4})(\d{4})$/, '($1) $2-$3');
+            }
+
+            return telefone;
+        }
+
+        function abrirModal() {
+            membroEditando = null;
+            document.getElementById('modal').classList.add('show');
+            document.querySelector('.modal-title').textContent = 'Novo Membro da Família';
+        }
+
+        function fecharModal() {
+            document.getElementById('modal').classList.remove('show');
+            document.getElementById('form').reset();
+            membroEditando = null;
+            document.querySelector('.modal-title').textContent = 'Novo Membro da Família';
+        }
+
+        async function editar(id) {
+            const response = await fetchAPI(`/api/familia/${id}`);
+            const membro = await response.json();
+
+            membroEditando = id;
+
+            document.getElementById('nome').value = membro.nome;
+            document.getElementById('telefone').value = formatarTelefone(membro.telefone);
+
+            document.querySelector('.modal-title').textContent = 'Editar Membro';
+            document.getElementById('modal').classList.add('show');
+        }
+
+        document.getElementById('form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Remove máscara do telefone antes de enviar
+            const telefoneValor = document.getElementById('telefone').value.replace(/\D/g, '');
+
+            const dados = {
+                nome: document.getElementById('nome').value,
+                telefone: telefoneValor
+            };
+
+            try {
+                let response;
+                if (membroEditando) {
+                    // Edição
+                    response = await fetchAPI(`/api/familia/${membroEditando}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(dados)
+                    });
+                } else {
+                    // Criação
+                    response = await fetchAPI('/api/familia', {
+                        method: 'POST',
+                        body: JSON.stringify(dados)
+                    });
+                }
+
+                if (response.ok) {
+                    fecharModal();
+                    await listar();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Erro ao salvar membro');
+                }
+            } catch (error) {
+                alert('Erro ao salvar membro: ' + error.message);
+            }
+        });
+
+        async function deletar(id) {
+            if (!confirm('Deseja realmente remover este membro da família? Ele não poderá mais registrar transações pelo WhatsApp.')) return;
+
+            const response = await fetchAPI(`/api/familia/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                await listar();
+            } else {
+                const error = await response.json();
+                alert(error.detail || 'Erro ao remover membro');
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

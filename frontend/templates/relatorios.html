@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatórios - Kairix Financeiro</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container navbar-content">
+            <div class="navbar-brand">
+                <img src="/static/assets/logo.png" alt="Kairix Logo">
+            </div>
+            <div class="navbar-menu">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/receitas">Receitas</a>
+                <a href="/despesas">Despesas</a>
+                <a href="/relatorios" class="active">Relatórios</a>
+                <a href="/familia">Família</a>
+                <a href="/meus-dados">Meus Dados</a>
+                <a href="/alterar-senha">Alterar Senha</a>
+                <button class="btn btn-secondary" onclick="AuthService.logout()">Sair</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container" style="padding: 40px 20px;">
+        <div class="d-flex justify-between align-center mb-3" style="flex-wrap: wrap; gap: 15px; width: 100%;">
+            <h1 style="margin: 0;">📊 Relatórios Inteligentes</h1>
+            <div class="d-flex" style="gap: 10px; flex-wrap: wrap;">
+                <button class="btn btn-success" onclick="abrirModalAgendamento()" style="white-space: nowrap;">⏰ Agendar</button>
+                <button class="btn btn-primary" onclick="exportarPDF()" style="white-space: nowrap;">📄 PDF</button>
+            </div>
+        </div>
+
+        <!-- Modal Agendamento -->
+        <div id="modalAgendamento" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title">⏰ Agendar Relatório Automático</h2>
+                    <button class="modal-close" onclick="fecharModalAgendamento()">&times;</button>
+                </div>
+                <form id="formAgendamento">
+                    <div class="form-group">
+                        <label>Frequência</label>
+                        <select id="tipoAgendamento" class="form-control" onchange="atualizarCamposAgendamento()" required>
+                            <option value="">Selecione...</option>
+                            <option value="diario">Diário</option>
+                            <option value="semanal">Semanal</option>
+                            <option value="mensal">Mensal</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Horário</label>
+                        <input type="time" id="horaAgendamento" class="form-control" required>
+                        <small style="color: rgba(255, 255, 255, 0.6); display: block; margin-top: 5px;">
+                            Relatório será enviado no seu WhatsApp
+                        </small>
+                    </div>
+
+                    <div class="form-group" id="diaSemanaGroup" style="display: none;">
+                        <label>Dia da Semana</label>
+                        <select id="diaSemana" class="form-control">
+                            <option value="0">Segunda-feira</option>
+                            <option value="1">Terça-feira</option>
+                            <option value="2">Quarta-feira</option>
+                            <option value="3">Quinta-feira</option>
+                            <option value="4">Sexta-feira</option>
+                            <option value="5">Sábado</option>
+                            <option value="6">Domingo</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="diaMesGroup" style="display: none;">
+                        <label>Dia do Mês</label>
+                        <input type="number" id="diaMes" class="form-control" min="1" max="31" placeholder="1-31">
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success" style="flex: 1;">Salvar Agendamento</button>
+                        <button type="button" class="btn btn-secondary" onclick="fecharModalAgendamento()">Cancelar</button>
+                    </div>
+                </form>
+
+                <div id="agendamentoAtivo" style="display: none; margin-top: 20px; padding: 15px; background: rgba(0, 217, 95, 0.1); border-radius: 8px; border-left: 3px solid var(--success-green);">
+                    <p style="margin: 0; font-weight: 600;">✅ Agendamento Ativo</p>
+                    <p id="detalhesAgendamento" style="margin: 5px 0 0 0;"></p>
+                    <div class="d-flex gap-2" style="margin-top: 10px;">
+                        <button class="btn btn-danger" style="padding: 5px 15px; font-size: 0.85rem;" onclick="removerAgendamento()">Remover</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="card mb-3">
+            <h3 class="mb-2">Filtros de Período</h3>
+            <div class="d-flex gap-2 mb-2" style="align-items: flex-end; flex-wrap: wrap;">
+                <div class="form-group" style="min-width: 200px;">
+                    <label>Período</label>
+                    <select id="periodoSelect" class="form-control" onchange="aplicarPeriodo()">
+                        <option value="mes_atual">Mês Atual</option>
+                        <option value="mes_anterior">Mês Anterior</option>
+                        <option value="ultimos_3_meses">Últimos 3 Meses</option>
+                        <option value="ultimos_6_meses">Últimos 6 Meses</option>
+                        <option value="ano_atual">Ano Atual</option>
+                        <option value="personalizado">Personalizado</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="dataInicioGroup" style="display: none; min-width: 150px;">
+                    <label>Data Início</label>
+                    <input type="date" id="dataInicio" class="form-control">
+                </div>
+
+                <div class="form-group" id="dataFimGroup" style="display: none; min-width: 150px;">
+                    <label>Data Fim</label>
+                    <input type="date" id="dataFim" class="form-control">
+                </div>
+
+                <button class="btn btn-success" onclick="gerarRelatorio()" id="btnGerar" style="height: 42px;">🔍 Gerar Relatório</button>
+            </div>
+        </div>
+
+        <!-- Loading e Erro -->
+        <div id="loadingRelatorio" style="display: none; text-align: center; padding: 20px;">
+            <div class="spinner"></div>
+            <p style="margin-top: 10px;">Gerando relatório...</p>
+        </div>
+
+        <div id="erroRelatorio" style="display: none; padding: 15px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border-left: 3px solid var(--danger-red); margin-bottom: 20px;">
+            <p style="margin: 0; color: var(--danger-red); font-weight: 600;">❌ Erro ao gerar relatório</p>
+            <p id="mensagemErro" style="margin: 5px 0 0 0;"></p>
+        </div>
+
+        <!-- Cards de Resumo -->
+        <div class="grid grid-4 mb-3" id="cardsResumo">
+            <div class="card text-center">
+                <p style="color: rgba(255, 255, 255, 0.7); margin-bottom: 5px;">Total Receitas</p>
+                <h2 style="color: var(--success-green);" id="totalReceitas">R$ 0,00</h2>
+            </div>
+            <div class="card text-center">
+                <p style="color: rgba(255, 255, 255, 0.7); margin-bottom: 5px;">Total Despesas</p>
+                <h2 style="color: var(--danger-red);" id="totalDespesas">R$ 0,00</h2>
+            </div>
+            <div class="card text-center">
+                <p style="color: rgba(255, 255, 255, 0.7); margin-bottom: 5px;">Saldo do Período</p>
+                <h2 id="saldoPeriodo">R$ 0,00</h2>
+            </div>
+            <div class="card text-center">
+                <p style="color: rgba(255, 255, 255, 0.7); margin-bottom: 5px;">Ticket Médio</p>
+                <h2 style="color: var(--finance-blue);" id="ticketMedio">R$ 0,00</h2>
+            </div>
+        </div>
+
+        <!-- Insights Inteligentes -->
+        <div class="card mb-3" id="insightsCard" style="display: none;">
+            <h3 class="mb-2">💡 Insights e Padrões</h3>
+            <div id="insightsList"></div>
+        </div>
+
+        <!-- Gráficos -->
+        <div class="grid grid-2 mb-3">
+            <div class="card">
+                <h3 class="mb-2">Despesas por Categoria</h3>
+                <div style="max-height: 300px; position: relative;">
+                    <canvas id="despesasChart"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <h3 class="mb-2">Receitas por Categoria</h3>
+                <div style="max-height: 300px; position: relative;">
+                    <canvas id="receitasChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <h3 class="mb-2">Evolução Financeira</h3>
+            <div style="max-height: 350px; position: relative;">
+                <canvas id="evolucaoChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Tabelas Detalhadas -->
+        <div class="card mb-3">
+            <div class="d-flex justify-between align-center mb-2">
+                <h3>📋 Transações do Período</h3>
+                <button class="btn btn-secondary" onclick="exportarCSV()">📊 Exportar CSV</button>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Tipo</th>
+                            <th>Categoria</th>
+                            <th>Descrição</th>
+                            <th>Membro</th>
+                            <th>Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabelaTransacoes">
+                        <tr><td colspan="6" class="text-center">Nenhuma transação encontrada</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Top Categorias -->
+        <div class="grid grid-2 mb-3">
+            <div class="card">
+                <h3 class="mb-2">🔝 Top 5 Despesas</h3>
+                <div id="topDespesas"></div>
+            </div>
+            <div class="card">
+                <h3 class="mb-2">🔝 Top 5 Receitas</h3>
+                <div id="topReceitas"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/auth.js"></script>
+    <script>
+        requireAuth();
+
+        let despesasChartInstance = null;
+        let receitasChartInstance = null;
+        let evolucaoChartInstance = null;
+
+        // Aplica período selecionado
+        function aplicarPeriodo() {
+            const periodo = document.getElementById('periodoSelect').value;
+            const dataInicioGroup = document.getElementById('dataInicioGroup');
+            const dataFimGroup = document.getElementById('dataFimGroup');
+
+            if (periodo === 'personalizado') {
+                dataInicioGroup.style.display = 'block';
+                dataFimGroup.style.display = 'block';
+            } else {
+                dataInicioGroup.style.display = 'none';
+                dataFimGroup.style.display = 'none';
+            }
+        }
+
+        // Calcula datas do período
+        function calcularPeriodo() {
+            const periodo = document.getElementById('periodoSelect').value;
+            const hoje = new Date();
+            let dataInicio, dataFim;
+
+            switch (periodo) {
+                case 'mes_atual':
+                    dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+                    dataFim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+                    break;
+                case 'mes_anterior':
+                    dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+                    dataFim = new Date(hoje.getFullYear(), hoje.getMonth(), 0);
+                    break;
+                case 'ultimos_3_meses':
+                    dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 2, 1);
+                    dataFim = hoje;
+                    break;
+                case 'ultimos_6_meses':
+                    dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 5, 1);
+                    dataFim = hoje;
+                    break;
+                case 'ano_atual':
+                    dataInicio = new Date(hoje.getFullYear(), 0, 1);
+                    dataFim = new Date(hoje.getFullYear(), 11, 31);
+                    break;
+                case 'personalizado':
+                    dataInicio = new Date(document.getElementById('dataInicio').value);
+                    dataFim = new Date(document.getElementById('dataFim').value);
+                    break;
+            }
+
+            return {
+                inicio: dataInicio.toISOString().split('T')[0],
+                fim: dataFim.toISOString().split('T')[0]
+            };
+        }
+
+        // Gera relatório completo
+        async function gerarRelatorio() {
+            // Mostra loading
+            document.getElementById('loadingRelatorio').style.display = 'block';
+            document.getElementById('erroRelatorio').style.display = 'none';
+            document.getElementById('btnGerar').disabled = true;
+
+            try {
+                const periodo = calcularPeriodo();
+
+                // Busca dados - simplificado sem filtros na URL
+                const responseTransacoes = await fetchAPI(`/api/transacoes?limit=1000`);
+
+                if (!responseTransacoes.ok) {
+                    const errorText = await responseTransacoes.text();
+                    console.error('Erro na resposta:', errorText);
+                    throw new Error('Não foi possível buscar as transações. Tente novamente.');
+                }
+
+                let transacoes = await responseTransacoes.json();
+
+                // Garante que é um array
+                if (!Array.isArray(transacoes)) {
+                    console.error('Transações não é um array:', transacoes);
+                    transacoes = [];
+                }
+
+                // Filtra por período no frontend
+                const dataInicio = new Date(periodo.inicio);
+                const dataFim = new Date(periodo.fim);
+                dataFim.setHours(23, 59, 59, 999); // Fim do dia
+
+                const transacoesFiltradas = transacoes.filter(t => {
+                    const data = new Date(t.data_transacao);
+                    return data >= dataInicio && data <= dataFim;
+                });
+
+                // Atualiza cards
+                atualizarCards(transacoesFiltradas);
+
+                // Gera insights
+                gerarInsights(transacoesFiltradas);
+
+                // Atualiza gráficos
+                atualizarGraficos(transacoesFiltradas);
+
+                // Atualiza tabela
+                atualizarTabela(transacoesFiltradas);
+
+                // Atualiza tops
+                atualizarTops(transacoesFiltradas);
+
+                // Esconde loading
+                document.getElementById('loadingRelatorio').style.display = 'none';
+
+            } catch (error) {
+                console.error('Erro ao gerar relatório:', error);
+
+                // Mostra erro
+                document.getElementById('loadingRelatorio').style.display = 'none';
+                document.getElementById('erroRelatorio').style.display = 'block';
+                document.getElementById('mensagemErro').textContent = error.message;
+            } finally {
+                document.getElementById('btnGerar').disabled = false;
+            }
+        }
+
+        // Atualiza cards de resumo
+        function atualizarCards(transacoes) {
+            const receitas = transacoes.filter(t => t.tipo === 'receita');
+            const despesas = transacoes.filter(t => t.tipo === 'despesa');
+
+            const totalReceitas = receitas.reduce((sum, t) => sum + t.valor, 0);
+            const totalDespesas = despesas.reduce((sum, t) => sum + t.valor, 0);
+            const saldo = totalReceitas - totalDespesas;
+            const ticketMedio = despesas.length > 0 ? totalDespesas / despesas.length : 0;
+
+            document.getElementById('totalReceitas').textContent = formatarMoeda(totalReceitas);
+            document.getElementById('totalDespesas').textContent = formatarMoeda(totalDespesas);
+            document.getElementById('saldoPeriodo').textContent = formatarMoeda(saldo);
+            document.getElementById('saldoPeriodo').style.color = saldo >= 0 ? 'var(--success-green)' : 'var(--danger-red)';
+            document.getElementById('ticketMedio').textContent = formatarMoeda(ticketMedio);
+        }
+
+        // Gera insights inteligentes
+        function gerarInsights(transacoes) {
+            const insights = [];
+            const receitas = transacoes.filter(t => t.tipo === 'receita');
+            const despesas = transacoes.filter(t => t.tipo === 'despesa');
+
+            const totalReceitas = receitas.reduce((sum, t) => sum + t.valor, 0);
+            const totalDespesas = despesas.reduce((sum, t) => sum + t.valor, 0);
+            const saldo = totalReceitas - totalDespesas;
+
+            // Insight 1: Saldo
+            if (saldo > 0) {
+                const percentual = ((saldo / totalReceitas) * 100).toFixed(1);
+                insights.push(`✅ Você economizou ${percentual}% da sua renda neste período!`);
+            } else if (saldo < 0) {
+                insights.push(`⚠️ Suas despesas excederam suas receitas em ${formatarMoeda(Math.abs(saldo))}`);
+            }
+
+            // Insight 2: Categoria com mais gastos
+            const despesasPorCategoria = {};
+            despesas.forEach(d => {
+                const cat = d.categoria?.nome || 'Sem categoria';
+                despesasPorCategoria[cat] = (despesasPorCategoria[cat] || 0) + d.valor;
+            });
+
+            const categorias = Object.entries(despesasPorCategoria).sort((a, b) => b[1] - a[1]);
+            if (categorias.length > 0) {
+                const [categoria, valor] = categorias[0];
+                const percentual = ((valor / totalDespesas) * 100).toFixed(1);
+                insights.push(`📌 Sua maior despesa foi em ${categoria}: ${formatarMoeda(valor)} (${percentual}%)`);
+            }
+
+            // Insight 3: Comparação com período anterior
+            // TODO: Implementar comparação
+
+            // Insight 4: Ticket médio
+            if (despesas.length > 0) {
+                const ticketMedio = totalDespesas / despesas.length;
+                insights.push(`💳 Ticket médio de despesas: ${formatarMoeda(ticketMedio)} (${despesas.length} transações)`);
+            }
+
+            // Exibe insights
+            if (insights.length > 0) {
+                document.getElementById('insightsCard').style.display = 'block';
+                document.getElementById('insightsList').innerHTML = insights
+                    .map(i => `<p style="margin-bottom: 10px; padding: 10px; background: rgba(14, 165, 233, 0.1); border-radius: 5px; border-left: 3px solid var(--finance-blue);">${i}</p>`)
+                    .join('');
+            } else {
+                document.getElementById('insightsCard').style.display = 'none';
+            }
+        }
+
+        // Atualiza gráficos
+        function atualizarGraficos(transacoes) {
+            const despesas = transacoes.filter(t => t.tipo === 'despesa');
+            const receitas = transacoes.filter(t => t.tipo === 'receita');
+
+            // Despesas por categoria
+            const despesasPorCategoria = {};
+            despesas.forEach(d => {
+                const cat = d.categoria?.nome || 'Sem categoria';
+                despesasPorCategoria[cat] = (despesasPorCategoria[cat] || 0) + d.valor;
+            });
+
+            if (despesasChartInstance) despesasChartInstance.destroy();
+            despesasChartInstance = new Chart(document.getElementById('despesasChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(despesasPorCategoria),
+                    datasets: [{
+                        data: Object.values(despesasPorCategoria),
+                        backgroundColor: ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: 'white' } }
+                    }
+                }
+            });
+
+            // Receitas por categoria
+            const receitasPorCategoria = {};
+            receitas.forEach(r => {
+                const cat = r.categoria?.nome || 'Sem categoria';
+                receitasPorCategoria[cat] = (receitasPorCategoria[cat] || 0) + r.valor;
+            });
+
+            if (receitasChartInstance) receitasChartInstance.destroy();
+            receitasChartInstance = new Chart(document.getElementById('receitasChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(receitasPorCategoria),
+                    datasets: [{
+                        data: Object.values(receitasPorCategoria),
+                        backgroundColor: ['#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#ef4444']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: 'white' } }
+                    }
+                }
+            });
+
+            // Evolução mensal
+            const periodo = calcularPeriodo();
+            const mesesMap = {};
+
+            transacoes.forEach(t => {
+                const data = new Date(t.data_transacao);
+                const mes = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`;
+
+                if (!mesesMap[mes]) {
+                    mesesMap[mes] = { receitas: 0, despesas: 0 };
+                }
+
+                if (t.tipo === 'receita') {
+                    mesesMap[mes].receitas += t.valor;
+                } else {
+                    mesesMap[mes].despesas += t.valor;
+                }
+            });
+
+            const mesesOrdenados = Object.keys(mesesMap).sort();
+
+            if (evolucaoChartInstance) evolucaoChartInstance.destroy();
+            evolucaoChartInstance = new Chart(document.getElementById('evolucaoChart'), {
+                type: 'line',
+                data: {
+                    labels: mesesOrdenados.map(m => {
+                        const [ano, mes] = m.split('-');
+                        return `${mes}/${ano}`;
+                    }),
+                    datasets: [
+                        {
+                            label: 'Receitas',
+                            data: mesesOrdenados.map(m => mesesMap[m].receitas),
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Despesas',
+                            data: mesesOrdenados.map(m => mesesMap[m].despesas),
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: 'white' } }
+                    },
+                    scales: {
+                        y: { ticks: { color: 'white' } },
+                        x: { ticks: { color: 'white' } }
+                    }
+                }
+            });
+        }
+
+        // Atualiza tabela de transações
+        function atualizarTabela(transacoes) {
+            const tbody = document.getElementById('tabelaTransacoes');
+
+            if (transacoes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">Nenhuma transação encontrada</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = transacoes
+                .sort((a, b) => new Date(b.data_transacao) - new Date(a.data_transacao))
+                .map(t => `
+                    <tr>
+                        <td>${new Date(t.data_transacao).toLocaleDateString('pt-BR')}</td>
+                        <td><span style="color: ${t.tipo === 'receita' ? 'var(--success-green)' : 'var(--danger-red)'}">${t.tipo === 'receita' ? '📈' : '📉'} ${t.tipo}</span></td>
+                        <td>${t.categoria ? t.categoria.icone + ' ' + t.categoria.nome : '-'}</td>
+                        <td>${t.descricao || '-'}</td>
+                        <td>${t.membro_familia ? t.membro_familia.nome : '-'}</td>
+                        <td style="color: ${t.tipo === 'receita' ? 'var(--success-green)' : 'var(--danger-red)'}">
+                            ${t.tipo === 'receita' ? '+' : '-'} ${formatarMoeda(t.valor)}
+                        </td>
+                    </tr>
+                `).join('');
+        }
+
+        // Atualiza tops
+        function atualizarTops(transacoes) {
+            const despesas = transacoes.filter(t => t.tipo === 'despesa');
+            const receitas = transacoes.filter(t => t.tipo === 'receita');
+
+            // Top despesas
+            const despesasPorCategoria = {};
+            despesas.forEach(d => {
+                const cat = d.categoria?.nome || 'Sem categoria';
+                const icone = d.categoria?.icone || '📌';
+                if (!despesasPorCategoria[cat]) {
+                    despesasPorCategoria[cat] = { valor: 0, icone };
+                }
+                despesasPorCategoria[cat].valor += d.valor;
+            });
+
+            const topDespesas = Object.entries(despesasPorCategoria)
+                .sort((a, b) => b[1].valor - a[1].valor)
+                .slice(0, 5);
+
+            document.getElementById('topDespesas').innerHTML = topDespesas.length > 0
+                ? topDespesas.map(([cat, data], i) => `
+                    <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-color);">
+                        <span>${i + 1}. ${data.icone} ${cat}</span>
+                        <span style="color: var(--danger-red); font-weight: bold;">${formatarMoeda(data.valor)}</span>
+                    </div>
+                `).join('')
+                : '<p class="text-center">Nenhuma despesa</p>';
+
+            // Top receitas
+            const receitasPorCategoria = {};
+            receitas.forEach(r => {
+                const cat = r.categoria?.nome || 'Sem categoria';
+                const icone = r.categoria?.icone || '📌';
+                if (!receitasPorCategoria[cat]) {
+                    receitasPorCategoria[cat] = { valor: 0, icone };
+                }
+                receitasPorCategoria[cat].valor += r.valor;
+            });
+
+            const topReceitas = Object.entries(receitasPorCategoria)
+                .sort((a, b) => b[1].valor - a[1].valor)
+                .slice(0, 5);
+
+            document.getElementById('topReceitas').innerHTML = topReceitas.length > 0
+                ? topReceitas.map(([cat, data], i) => `
+                    <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-color);">
+                        <span>${i + 1}. ${data.icone} ${cat}</span>
+                        <span style="color: var(--success-green); font-weight: bold;">${formatarMoeda(data.valor)}</span>
+                    </div>
+                `).join('')
+                : '<p class="text-center">Nenhuma receita</p>';
+        }
+
+        // Formata moeda
+        function formatarMoeda(valor) {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+            }).format(valor);
+        }
+
+        // Exporta CSV
+        function exportarCSV() {
+            alert('Funcionalidade de exportação CSV em desenvolvimento');
+        }
+
+        // Exporta PDF
+        function exportarPDF() {
+            alert('Funcionalidade de exportação PDF em desenvolvimento');
+        }
+
+        // Carrega relatório ao iniciar
+        window.addEventListener('load', () => {
+            gerarRelatorio();
+            carregarAgendamento();
+        });
+
+        // === FUNÇÕES DE AGENDAMENTO ===
+
+        function abrirModalAgendamento() {
+            document.getElementById('modalAgendamento').classList.add('show');
+        }
+
+        function fecharModalAgendamento() {
+            document.getElementById('modalAgendamento').classList.remove('show');
+            document.getElementById('formAgendamento').reset();
+            atualizarCamposAgendamento();
+        }
+
+        function atualizarCamposAgendamento() {
+            const tipo = document.getElementById('tipoAgendamento').value;
+            const diaSemanaGroup = document.getElementById('diaSemanaGroup');
+            const diaMesGroup = document.getElementById('diaMesGroup');
+
+            diaSemanaGroup.style.display = tipo === 'semanal' ? 'block' : 'none';
+            diaMesGroup.style.display = tipo === 'mensal' ? 'block' : 'none';
+        }
+
+        async function carregarAgendamento() {
+            try {
+                const response = await fetchAPI('/api/agendamentos');
+                if (response.ok) {
+                    const agendamento = await response.json();
+                    if (agendamento) {
+                        mostrarAgendamentoAtivo(agendamento);
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar agendamento:', error);
+            }
+        }
+
+        function mostrarAgendamentoAtivo(agendamento) {
+            const detalhesDiv = document.getElementById('detalhesAgendamento');
+            const agendamentoDiv = document.getElementById('agendamentoAtivo');
+
+            let detalhes = `Relatório ${agendamento.tipo} às ${agendamento.hora}`;
+
+            if (agendamento.tipo === 'semanal') {
+                const dias = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+                detalhes += ` toda(o) ${dias[agendamento.dia_semana]}`;
+            } else if (agendamento.tipo === 'mensal') {
+                detalhes += ` todo dia ${agendamento.dia_mes}`;
+            }
+
+            detalhesDiv.textContent = detalhes;
+            agendamentoDiv.style.display = 'block';
+        }
+
+        document.getElementById('formAgendamento').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const tipo = document.getElementById('tipoAgendamento').value;
+            const hora = document.getElementById('horaAgendamento').value;
+            const diaSemana = document.getElementById('diaSemana').value;
+            const diaMes = document.getElementById('diaMes').value;
+
+            const dados = {
+                tipo,
+                hora,
+                ativo: true
+            };
+
+            if (tipo === 'semanal') {
+                dados.dia_semana = parseInt(diaSemana);
+            } else if (tipo === 'mensal') {
+                dados.dia_mes = parseInt(diaMes);
+            }
+
+            try {
+                const response = await fetchAPI('/api/agendamentos', {
+                    method: 'POST',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    const agendamento = await response.json();
+                    alert('Agendamento salvo com sucesso! Você receberá relatórios no seu WhatsApp.');
+                    fecharModalAgendamento();
+                    mostrarAgendamentoAtivo(agendamento);
+                } else {
+                    const error = await response.json();
+                    alert('Erro: ' + (error.detail || 'Erro ao salvar agendamento'));
+                }
+            } catch (error) {
+                console.error('Erro ao salvar agendamento:', error);
+                alert('Erro ao salvar agendamento');
+            }
+        });
+
+        async function removerAgendamento() {
+            if (!confirm('Deseja realmente remover o agendamento de relatórios?')) return;
+
+            try {
+                const response = await fetchAPI('/api/agendamentos', {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    alert('Agendamento removido com sucesso!');
+                    document.getElementById('agendamentoAtivo').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Erro ao remover agendamento:', error);
+                alert('Erro ao remover agendamento');
+            }
+        }
+    </script>
+</body>
+</html>

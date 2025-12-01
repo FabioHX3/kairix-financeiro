@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meus Dados - Kairix Financeiro</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container navbar-content">
+            <div class="navbar-brand">
+                <img src="/static/assets/logo.png" alt="Kairix Logo">
+            </div>
+            <div class="navbar-menu">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/receitas">Receitas</a>
+                <a href="/despesas">Despesas</a>
+                <a href="/relatorios">Relatórios</a>
+                <a href="/familia">Família</a>
+                <a href="/meus-dados" class="active">Meus Dados</a>
+                <a href="/alterar-senha">Alterar Senha</a>
+                <button class="btn btn-secondary" onclick="AuthService.logout()">Sair</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container" style="padding: 40px 20px; max-width: 800px;">
+        <h1 class="mb-3">👤 Meus Dados</h1>
+
+        <div id="alertDados"></div>
+
+        <div class="card">
+            <h3 class="mb-2">Informações Pessoais</h3>
+
+            <form id="formDados">
+                <div class="form-group">
+                    <label>Nome Completo</label>
+                    <input type="text" id="nome" class="form-control" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="email" class="form-control" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Telefone</label>
+                    <input type="tel" id="telefone" class="form-control" placeholder="(99) 99999-9999" maxlength="15">
+                </div>
+
+                <div class="form-group">
+                    <label>WhatsApp (com DDD)</label>
+                    <input type="tel" id="whatsapp" class="form-control" placeholder="(99) 99999-9999" maxlength="15">
+                    <small style="color: rgba(255, 255, 255, 0.6);">
+                        Usado para integração WhatsApp
+                    </small>
+                </div>
+
+                <button type="submit" class="btn btn-primary">
+                    Salvar Alterações
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/auth.js"></script>
+    <script>
+        requireAuth();
+
+        async function init() {
+            const user = await AuthService.getCurrentUser();
+            if (user) {
+                document.getElementById('nome').value = user.nome;
+                document.getElementById('email').value = user.email;
+                document.getElementById('telefone').value = user.telefone || '';
+                document.getElementById('whatsapp').value = user.whatsapp || '';
+
+                // Aplicar máscaras após carregar dados
+                aplicarMascaraTelefone();
+            }
+        }
+
+        // Função para aplicar máscara de telefone brasileiro
+        function aplicarMascaraTelefone() {
+            const telefoneInput = document.getElementById('telefone');
+            const whatsappInput = document.getElementById('whatsapp');
+
+            function mascaraTelefone(valor) {
+                valor = valor.replace(/\D/g, ''); // Remove tudo que não é dígito
+
+                if (valor.length <= 10) {
+                    // Formato: (99) 9999-9999
+                    valor = valor.replace(/^(\d{2})(\d)/g, '($1) $2');
+                    valor = valor.replace(/(\d)(\d{4})$/, '$1-$2');
+                } else {
+                    // Formato: (99) 99999-9999
+                    valor = valor.replace(/^(\d{2})(\d)/g, '($1) $2');
+                    valor = valor.replace(/(\d)(\d{4})$/, '$1-$2');
+                }
+
+                return valor;
+            }
+
+            telefoneInput.addEventListener('input', function(e) {
+                e.target.value = mascaraTelefone(e.target.value);
+            });
+
+            whatsappInput.addEventListener('input', function(e) {
+                e.target.value = mascaraTelefone(e.target.value);
+            });
+
+            // Aplicar máscara aos valores atuais
+            if (telefoneInput.value) {
+                telefoneInput.value = mascaraTelefone(telefoneInput.value);
+            }
+            if (whatsappInput.value) {
+                whatsappInput.value = mascaraTelefone(whatsappInput.value);
+            }
+        }
+
+        // Form de Dados
+        document.getElementById('formDados').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const alertDiv = document.getElementById('alertDados');
+            alertDiv.innerHTML = '';
+
+            // Remover máscaras antes de enviar
+            const telefoneValor = document.getElementById('telefone').value.replace(/\D/g, '') || null;
+            const whatsappValor = document.getElementById('whatsapp').value.replace(/\D/g, '') || null;
+
+            const dados = {
+                nome: document.getElementById('nome').value,
+                email: document.getElementById('email').value,
+                telefone: telefoneValor,
+                whatsapp: whatsappValor
+            };
+
+            try {
+                const btn = e.target.querySelector('button[type="submit"]');
+                btn.disabled = true;
+                btn.textContent = 'Salvando...';
+
+                const response = await fetchAPI('/api/auth/me', {
+                    method: 'PUT',
+                    body: JSON.stringify(dados)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Erro ao atualizar dados');
+                }
+
+                alertDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        Dados atualizados com sucesso!
+                    </div>
+                `;
+
+                btn.disabled = false;
+                btn.textContent = 'Salvar Alterações';
+
+            } catch (error) {
+                alertDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        ${error.message}
+                    </div>
+                `;
+
+                const btn = e.target.querySelector('button[type="submit"]');
+                btn.disabled = false;
+                btn.textContent = 'Salvar Alterações';
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>

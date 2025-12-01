@@ -1,0 +1,52 @@
+[project]
+name = "kairix-financeiro"
+version = "1.0.0"
+description = "Agente financeiro inteligente para WhatsApp"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # Web Framework
+    "fastapi",
+    "uvicorn",
+    "python-multipart",
+
+    # Database
+    "sqlalchemy",
+    "psycopg2-binary",
+
+    # Auth & Security
+    "python-jose[cryptography]",
+    "passlib[bcrypt]",
+
+    # Config
+    "python-dotenv",
+    "pydantic",
+    "pydantic-settings",
+
+    # HTTP Client
+    "requests",
+    "httpx",
+
+    # LangChain - Agente IA
+    "langchain",
+    "langchain-openai",
+    "langchain-community",
+
+    # Memory/Storage para LangChain
+    "redis",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
