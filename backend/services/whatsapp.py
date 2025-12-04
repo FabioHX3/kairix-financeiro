@@ -20,7 +20,7 @@ class WhatsAppService:
         """Retorna headers para requisições UAZAPI"""
         return {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}",
+            "token": self.api_key,  # UAZAPI usa header 'token' direto
         }
 
     def _formatar_numero(self, numero: str) -> str:
@@ -157,6 +157,48 @@ class WhatsAppService:
                     return {"success": False, "error": response.text}
 
         except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def baixar_midia(self, message_id: str, return_base64: bool = True) -> dict:
+        """
+        Baixa mídia de uma mensagem usando /message/download
+
+        Args:
+            message_id: ID da mensagem (ex: "AC3A0E218D658115466EA43E1983BC52")
+            return_base64: Se True, retorna a imagem em base64
+
+        Returns:
+            dict com fileURL, base64Data, mimetype
+        """
+        if not self.base_url or not self.api_key:
+            return {"success": False, "error": "API não configurada"}
+
+        url = f"{self.base_url}/message/download"
+
+        payload = {
+            "id": message_id,
+            "return_base64": return_base64,
+            "return_link": True
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=60) as client:
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers=self._get_headers()
+                )
+
+                if response.status_code == 200:
+                    data = response.json()
+                    print(f"[WhatsApp] Mídia baixada: {data.get('fileURL', 'N/A')[:50]}...")
+                    return {"success": True, "data": data}
+                else:
+                    print(f"[WhatsApp] Erro ao baixar mídia: {response.status_code} - {response.text[:200]}")
+                    return {"success": False, "error": response.text}
+
+        except Exception as e:
+            print(f"[WhatsApp] Erro ao baixar mídia: {e}")
             return {"success": False, "error": str(e)}
 
     async def verificar_conexao(self) -> dict:

@@ -10,10 +10,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_core.output_parsers import JsonOutputParser
-from langchain.memory import ConversationBufferWindowMemory
 from pydantic import BaseModel, Field
 
 from backend.config import settings
@@ -164,7 +161,7 @@ EXEMPLOS:
 Usuário: "gastei 50 no almoço"
 {
   "acao": "registrar",
-  "mensagem": "💸 Registrei sua despesa!\n\n💵 R$ 50,00\n📝 Almoço\n🏷️ Alimentação\n\n✅ Tudo certo?",
+  "mensagem": "💸 Registrei sua despesa!\n\n💵 R$ 50,00\n📝 Almoço\n🏷️ Alimentação\n\n✅ Registrado! Se algo estiver errado, me avisa.",
   "transacao": {"tipo": "despesa", "valor": 50, "descricao": "Almoço", "categoria": "Alimentação", "data": "HOJE", "confianca": 0.95},
   "aguardando": null
 }
@@ -236,10 +233,14 @@ DATA DE HOJE: {data_hoje}
                 contexto_msgs += f"\nTransação parcial: {json.dumps(contexto_pendente['transacao_parcial'])}"
 
         if contexto_extra:
-            contexto_msgs += f"\n\nCONTEXTO EXTRA: {json.dumps(contexto_extra)}"
+            nome_usuario = contexto_extra.get("nome_usuario", "")
+            if nome_usuario:
+                contexto_msgs += f"\n\nNOME DO USUÁRIO: {nome_usuario} (use esse nome para se referir ao usuário de forma personalizada)"
+            else:
+                contexto_msgs += f"\n\nCONTEXTO EXTRA: {json.dumps(contexto_extra)}"
 
         # System prompt com data atual
-        system = self.system_prompt.format(data_hoje=datetime.now().strftime("%Y-%m-%d"))
+        system = self.system_prompt.replace("{data_hoje}", datetime.now().strftime("%Y-%m-%d"))
         if cats_texto:
             system = system.replace(
                 "CATEGORIAS DISPONÍVEIS:",
@@ -306,6 +307,33 @@ DATA DE HOJE: {data_hoje}
         if json_match:
             content = json_match.group()
 
+        # Sanitiza o JSON: escapa quebras de linha dentro de strings
+        # O LLM às vezes retorna newlines literais dentro de valores string
+        def sanitize_json_strings(s: str) -> str:
+            """Escapa newlines literais dentro de strings JSON"""
+            result = []
+            in_string = False
+            escape_next = False
+            for char in s:
+                if escape_next:
+                    result.append(char)
+                    escape_next = False
+                elif char == '\\':
+                    result.append(char)
+                    escape_next = True
+                elif char == '"':
+                    result.append(char)
+                    in_string = not in_string
+                elif in_string and char == '\n':
+                    result.append('\\n')  # Escapa newline literal
+                elif in_string and char == '\r':
+                    result.append('')  # Remove carriage return
+                else:
+                    result.append(char)
+            return ''.join(result)
+
+        content = sanitize_json_strings(content)
+
         try:
             data = json.loads(content)
 
@@ -351,14 +379,20 @@ DATA DE HOJE: {data_hoje}
         self,
         user_id: str,
         transcricao: str,
-        categorias: List[Dict] = None
+        categorias: List[Dict] = None,
+        contexto_extra: Dict = None
     ) -> RespostaAgente:
         """Processa transcrição de áudio"""
+        # Mescla contexto extra com info de áudio
+        contexto = {"origem": "audio", "transcricao": transcricao}
+        if contexto_extra:
+            contexto.update(contexto_extra)
+
         return await self.processar_mensagem(
             user_id=user_id,
             mensagem=transcricao,
             categorias=categorias,
-            contexto_extra={"origem": "audio", "transcricao": transcricao}
+            contexto_extra=contexto
         )
 
     async def processar_imagem(
@@ -366,20 +400,80 @@ DATA DE HOJE: {data_hoje}
         user_id: str,
         dados_imagem: Dict,
         caption: str = "",
-        categorias: List[Dict] = None
+        categorias: List[Dict] = None,
+        contexto_extra: Dict = None
     ) -> RespostaAgente:
         """Processa dados extraídos de imagem"""
-        # Se a extração de imagem já tem dados, usa eles
+
+        # Se a visão não entendeu e tem pergunta, retorna a pergunta diretamente
+        if not dados_imagem.get("entendeu", True) and dados_imagem.get("pergunta"):
+            # Salva contexto para continuar depois
+            memoria.set_contexto(user_id, {
+                "aguardando": "esclarecimento_imagem",
+                "dados_imagem_parcial": dados_imagem
+            })
+
+            return RespostaAgente(
+                acao="perguntar",
+                mensagem=f"📷 {dados_imagem['pergunta']}",
+                transacao=None,
+                aguardando="esclarecimento_imagem"
+            )
+
+        # Se entendeu e tem valor, prepara para registrar
+        if dados_imagem.get("entendeu") and dados_imagem.get("valor", 0) > 0:
+            # Monta descrição completa
+            descricao = dados_imagem.get("descricao", "")
+            estabelecimento = dados_imagem.get("estabelecimento", "")
+            if estabelecimento and estabelecimento not in descricao:
+                descricao = f"{descricao} - {estabelecimento}".strip(" -")
+
+            transacao = TransacaoExtraida(
+                tipo=dados_imagem.get("tipo", "despesa"),
+                valor=float(dados_imagem["valor"]),
+                descricao=descricao,
+                categoria=dados_imagem.get("categoria_sugerida", "Outros"),
+                data=dados_imagem.get("data_documento") or datetime.now().strftime("%Y-%m-%d"),
+                confianca=float(dados_imagem.get("confianca", 0.8))
+            )
+
+            # Monta mensagem de confirmação
+            obs = dados_imagem.get("observacoes", "")
+            msg = f"📷 Encontrei na imagem:\n\n"
+            msg += f"💵 R$ {transacao.valor:,.2f}\n"
+            msg += f"📝 {transacao.descricao}\n"
+            msg += f"🏷️ {transacao.categoria}\n"
+            if obs:
+                msg += f"📌 {obs}\n"
+            msg += f"\n✅ Registrado! Se algo estiver errado, me avisa."
+
+            # Salva no histórico
+            memoria.add_mensagem(user_id, "user", f"[Imagem] {caption}" if caption else "[Imagem enviada]")
+            memoria.add_mensagem(user_id, "assistant", msg)
+
+            return RespostaAgente(
+                acao="registrar",
+                mensagem=msg,
+                transacao=transacao,
+                aguardando=None
+            )
+
+        # Fallback: processa como mensagem normal com contexto da imagem
         mensagem = caption if caption else "Enviei uma foto de comprovante"
+
+        # Merge contexto_extra se vier
+        ctx = {
+            "origem": "imagem",
+            "dados_extraidos": dados_imagem
+        }
+        if contexto_extra:
+            ctx.update(contexto_extra)
 
         return await self.processar_mensagem(
             user_id=user_id,
             mensagem=mensagem,
             categorias=categorias,
-            contexto_extra={
-                "origem": "imagem",
-                "dados_extraidos": dados_imagem
-            }
+            contexto_extra=ctx
         )
 
 

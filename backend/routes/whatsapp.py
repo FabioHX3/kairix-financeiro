@@ -49,50 +49,78 @@ async def webhook_whatsapp(
         # Log para debug
         print(f"[Webhook] Payload recebido: {payload}")
 
-        # UAZAPI pode enviar evento ou mensagem direta
-        # Se tiver "event", é um wrapper
-        if "event" in payload:
-            event = payload.get("event", "")
-            if event not in ["messages", "message", "messages.upsert"]:
-                return {"status": "ignored", "reason": f"event type: {event}"}
-            # Extrai dados do wrapper
-            data = payload.get("data", payload)
-        else:
-            # Mensagem direta
-            data = payload
+        # UAZAPI envia com EventType e message dentro do payload
+        event_type = payload.get("EventType", "") or payload.get("event", "")
+
+        if event_type and event_type not in ["messages", "message", "messages.upsert"]:
+            return {"status": "ignored", "reason": f"event type: {event_type}"}
+
+        # UAZAPI: dados da mensagem estão em payload.message
+        message = payload.get("message", {})
 
         # Ignora mensagens enviadas por nós
-        if data.get("fromMe", False):
+        if message.get("fromMe", False):
             return {"status": "ignored", "reason": "own message"}
 
-        # Extrai número do remetente
-        chatid = data.get("chatid", "") or data.get("key", {}).get("remoteJid", "")
-        sender = data.get("sender", "")
+        # Extrai número do remetente - UAZAPI usa message.chatid ou message.sender
+        chatid = message.get("chatid", "") or message.get("sender", "")
 
-        from_number = extrair_numero(chatid or sender)
+        # Fallback para outros formatos
+        if not chatid:
+            chatid = payload.get("chat", {}).get("wa_chatid", "")
+
+        from_number = extrair_numero(chatid)
 
         if not from_number:
             print("[Webhook] Número não encontrado no payload")
             return {"status": "error", "reason": "number not found"}
 
-        # Busca com e sem DDI
-        numero_sem_ddi = from_number[2:] if from_number.startswith("55") else from_number
+        # Gera variações do número (com/sem 9, com/sem DDI)
+        def gerar_variacoes_numero(numero: str) -> list:
+            """Gera variações do número para busca flexível"""
+            variacoes = [numero]
 
-        # Procura usuário pelo WhatsApp
-        usuario = db.query(Usuario).filter(
-            (Usuario.whatsapp == from_number) |
-            (Usuario.whatsapp == numero_sem_ddi) |
-            (Usuario.telefone == from_number) |
-            (Usuario.telefone == numero_sem_ddi)
-        ).first()
+            # Remove DDI se tiver
+            if numero.startswith("55") and len(numero) >= 12:
+                sem_ddi = numero[2:]
+                variacoes.append(sem_ddi)
+                ddd = numero[2:4]
+                resto = numero[4:]
+
+                # Se tem 8 dígitos após DDD, adiciona o 9
+                if len(resto) == 8:
+                    com_nove = f"55{ddd}9{resto}"
+                    variacoes.append(com_nove)
+                    variacoes.append(f"{ddd}9{resto}")
+
+                # Se tem 9 dígitos após DDD e começa com 9, remove o 9
+                elif len(resto) == 9 and resto.startswith("9"):
+                    sem_nove = f"55{ddd}{resto[1:]}"
+                    variacoes.append(sem_nove)
+                    variacoes.append(f"{ddd}{resto[1:]}")
+
+            return list(set(variacoes))  # Remove duplicatas
+
+        variacoes = gerar_variacoes_numero(from_number)
+
+        # Procura usuário pelo WhatsApp (busca flexível)
+        from sqlalchemy import or_
+        filtros_usuario = []
+        for var in variacoes:
+            filtros_usuario.extend([
+                Usuario.whatsapp == var,
+                Usuario.telefone == var
+            ])
+
+        usuario = db.query(Usuario).filter(or_(*filtros_usuario)).first()
 
         membro_familia = None
 
         # Se não encontrou, procura nos membros da família
         if not usuario:
+            filtros_membro = [MembroFamilia.telefone == var for var in variacoes]
             membro_familia = db.query(MembroFamilia).filter(
-                (MembroFamilia.telefone == from_number) |
-                (MembroFamilia.telefone == numero_sem_ddi),
+                or_(*filtros_membro),
                 MembroFamilia.ativo == True
             ).first()
 
@@ -127,87 +155,119 @@ async def webhook_whatsapp(
         mensagem_original = ""
         arquivo_url = None
 
-        # Tipo de mensagem UAZAPI
-        message_type = data.get("messageType", "text")
+        # Nome do usuário: prioriza sistema, fallback para WhatsApp
+        nome_sistema = usuario.nome if usuario.nome else None
+        nome_whatsapp = message.get("senderName", "") or chat.get("wa_name", "") or chat.get("name", "")
+        sender_name = nome_sistema or nome_whatsapp
+        contexto_extra = {"nome_usuario": sender_name} if sender_name else None
 
-        # Também suporta formato Evolution (message.conversation, etc)
-        message = data.get("message", {})
+        # UAZAPI: tipo em message.messageType ou message.type
+        message_type = message.get("messageType", "") or message.get("type", "text")
+        message_type = message_type.lower()
 
-        # TEXTO
-        if message_type == "text" or "conversation" in message or "extendedTextMessage" in message:
-            # UAZAPI: texto direto em "text"
-            # Evolution: texto em message.conversation
-            mensagem_original = (
-                data.get("text", "") or
-                message.get("conversation", "") or
-                message.get("extendedTextMessage", {}).get("text", "")
-            )
+        print(f"[Webhook] Tipo: {message_type}, Texto: {message.get('text', '')[:50]}")
+
+        # TEXTO (Conversation, ExtendedTextMessage, text)
+        if message_type in ["conversation", "extendedtextmessage", "text"]:
+            mensagem_original = message.get("text", "")
 
             if mensagem_original:
                 resultado = await agente.processar_mensagem(
                     user_id=user_id,
                     mensagem=mensagem_original,
-                    categorias=categorias_lista
+                    categorias=categorias_lista,
+                    contexto_extra=contexto_extra
                 )
 
         # ÁUDIO
-        elif message_type == "audio" or "audioMessage" in message:
+        elif message_type in ["audio", "audiomessage", "ptt"]:
             origem = OrigemRegistro.WHATSAPP_AUDIO
-            # UAZAPI: URL em fileURL
-            # Evolution: URL em message.audioMessage.url
-            arquivo_url = (
-                data.get("fileURL", "") or
-                message.get("audioMessage", {}).get("url", "")
-            )
+            arquivo_url = message.get("fileURL", "") or message.get("url", "")
+            message_id = message.get("messageid", "")
 
-            if arquivo_url:
+            print(f"[Webhook] Áudio recebido - URL: {arquivo_url[:60] if arquivo_url else 'N/A'}...")
+
+            texto = ""
+            sucesso = False
+
+            # Tenta baixar mídia descriptografada via UAZAPI
+            if message_id:
+                midia_result = await whatsapp_service.baixar_midia(message_id, return_base64=True)
+
+                if midia_result.get("success") and midia_result.get("data", {}).get("base64Data"):
+                    # Usa base64 da mídia descriptografada
+                    base64_data = midia_result["data"]["base64Data"]
+                    mimetype = midia_result["data"].get("mimetype", "audio/ogg")
+                    print(f"[Webhook] Áudio descriptografado ({mimetype}, {len(base64_data)} chars)")
+                    texto, sucesso = llm_service.transcrever_audio_base64(base64_data, mimetype)
+
+            # Fallback: tenta URL direta (pode falhar se criptografado)
+            if not sucesso and arquivo_url:
+                print(f"[Webhook] Fallback para URL direta do áudio")
                 texto, sucesso = llm_service.transcrever_audio(arquivo_url)
 
-                if sucesso and texto:
-                    mensagem_original = texto
-                    resultado = await agente.processar_audio(
-                        user_id=user_id,
-                        transcricao=texto,
-                        categorias=categorias_lista
-                    )
-                else:
-                    background_tasks.add_task(
-                        whatsapp_service.enviar_mensagem,
-                        from_number,
-                        "🎤 Não consegui entender o áudio. Pode enviar por texto?"
-                    )
-                    return {"status": "audio_transcription_failed"}
+            if sucesso and texto:
+                mensagem_original = texto
+                resultado = await agente.processar_audio(
+                    user_id=user_id,
+                    transcricao=texto,
+                    categorias=categorias_lista,
+                    contexto_extra=contexto_extra
+                )
+            else:
+                background_tasks.add_task(
+                    whatsapp_service.enviar_mensagem,
+                    from_number,
+                    "🎤 Não consegui entender o áudio. Pode enviar por texto?"
+                )
+                return {"status": "audio_transcription_failed"}
 
         # IMAGEM
-        elif message_type == "image" or "imageMessage" in message:
+        elif message_type in ["image", "imagemessage"]:
             origem = OrigemRegistro.WHATSAPP_IMAGEM
-            # UAZAPI: URL em fileURL, caption em text
-            # Evolution: URL em message.imageMessage.url
-            arquivo_url = (
-                data.get("fileURL", "") or
-                message.get("imageMessage", {}).get("url", "")
-            )
-            caption = (
-                data.get("text", "") or
-                message.get("imageMessage", {}).get("caption", "")
-            )
+            # UAZAPI: URL pode estar em content.URL, fileURL ou url
+            content = message.get("content", {})
+            if isinstance(content, dict):
+                arquivo_url = content.get("URL", "") or content.get("url", "")
+                caption = content.get("caption", "") or message.get("text", "")
+            else:
+                arquivo_url = message.get("fileURL", "") or message.get("url", "")
+                caption = message.get("text", "") or message.get("caption", "")
             mensagem_original = caption
+            print(f"[Webhook] Imagem URL: {arquivo_url[:80] if arquivo_url else 'VAZIA'}...")
 
             if arquivo_url:
-                dados_imagem = llm_service.extrair_de_imagem(arquivo_url, caption)
+                print(f"[Webhook] Processando imagem: {arquivo_url[:80]}...")
+
+                # Tenta baixar mídia descriptografada via UAZAPI
+                message_id = message.get("messageid", "")
+                midia_result = await whatsapp_service.baixar_midia(message_id, return_base64=True)
+
+                if midia_result.get("success") and midia_result.get("data", {}).get("base64Data"):
+                    # Usa base64 da mídia descriptografada
+                    base64_data = midia_result["data"]["base64Data"]
+                    mimetype = midia_result["data"].get("mimetype", "image/jpeg")
+                    print(f"[Webhook] Usando mídia descriptografada (base64, {len(base64_data)} chars)")
+                    dados_imagem = llm_service.extrair_de_imagem_base64(base64_data, mimetype, caption)
+                elif midia_result.get("success") and midia_result.get("data", {}).get("fileURL"):
+                    # Usa URL pública retornada
+                    url_publica = midia_result["data"]["fileURL"]
+                    print(f"[Webhook] Usando URL pública: {url_publica[:60]}...")
+                    dados_imagem = llm_service.extrair_de_imagem(url_publica, caption)
+                else:
+                    # Fallback: tenta URL original (pode falhar se criptografada)
+                    print(f"[Webhook] Fallback para URL original")
+                    dados_imagem = llm_service.extrair_de_imagem(arquivo_url, caption)
+
+                print(f"[Webhook] Dados extraídos da imagem: {dados_imagem}")
 
                 resultado = await agente.processar_imagem(
                     user_id=user_id,
                     dados_imagem=dados_imagem,
                     caption=caption,
-                    categorias=categorias_lista
+                    categorias=categorias_lista,
+                    contexto_extra=contexto_extra
                 )
-
-                # Se extraiu dados da imagem, usa eles
-                if dados_imagem.get("valor", 0) > 0 and resultado and resultado.transacao:
-                    resultado.transacao.valor = dados_imagem["valor"]
-                    if dados_imagem.get("descricao"):
-                        resultado.transacao.descricao = dados_imagem["descricao"]
 
         else:
             print(f"[Webhook] Tipo não suportado: {message_type}")

@@ -20,7 +20,7 @@ dependencies = [
 
     # Config
     "python-dotenv",
-    "pydantic",
+    "pydantic[email]",
     "pydantic-settings",
 
     # HTTP Client

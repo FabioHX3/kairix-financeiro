@@ -217,7 +217,117 @@ Exemplos:
         }
 
     def transcrever_audio(self, audio_url: str) -> Tuple[str, bool]:
-        """Transcreve áudio para texto usando OpenAI Whisper API"""
+        """Transcreve áudio para texto usando Gemini via OpenRouter (fallback: Whisper)"""
+        # Tenta primeiro com Gemini via OpenRouter
+        if self.openrouter_api_key:
+            try:
+                print(f"[Gemini Audio] Baixando áudio de: {audio_url}")
+                response = requests.get(audio_url, timeout=30)
+                response.raise_for_status()
+
+                audio_base64 = base64.b64encode(response.content).decode('utf-8')
+
+                # Detecta formato do áudio
+                content_type = response.headers.get('content-type', 'audio/ogg')
+                if 'mp3' in content_type or 'mpeg' in content_type:
+                    audio_format = 'mp3'
+                elif 'wav' in content_type:
+                    audio_format = 'wav'
+                elif 'mp4' in content_type or 'm4a' in content_type:
+                    audio_format = 'mp4'
+                else:
+                    audio_format = 'ogg'
+
+                texto, sucesso = self._transcrever_com_gemini(audio_base64, audio_format)
+                if sucesso:
+                    return texto, True
+
+            except Exception as e:
+                print(f"[Gemini Audio] Erro: {e}, tentando Whisper...")
+
+        # Fallback para Whisper se Gemini falhar
+        return self._transcrever_com_whisper(audio_url)
+
+    def transcrever_audio_base64(self, base64_data: str, mimetype: str = "audio/ogg") -> Tuple[str, bool]:
+        """Transcreve áudio a partir de base64 usando Gemini via OpenRouter"""
+        if not self.openrouter_api_key:
+            print("[Gemini Audio] OPENROUTER_API_KEY não configurada")
+            return "", False
+
+        # Extrai formato do mimetype
+        if 'mp3' in mimetype or 'mpeg' in mimetype:
+            audio_format = 'mp3'
+        elif 'wav' in mimetype:
+            audio_format = 'wav'
+        elif 'mp4' in mimetype or 'm4a' in mimetype:
+            audio_format = 'mp4'
+        elif 'webm' in mimetype:
+            audio_format = 'webm'
+        else:
+            audio_format = 'ogg'
+
+        return self._transcrever_com_gemini(base64_data, audio_format)
+
+    def _transcrever_com_gemini(self, audio_base64: str, audio_format: str = "ogg") -> Tuple[str, bool]:
+        """Transcreve áudio usando Gemini via OpenRouter"""
+        try:
+            print(f"[Gemini Audio] Transcrevendo áudio ({audio_format}, {len(audio_base64)} chars)")
+
+            url = "https://openrouter.ai/api/v1/chat/completions"
+
+            headers = {
+                "Authorization": f"Bearer {self.openrouter_api_key}",
+                "Content-Type": "application/json"
+            }
+
+            # Gemini aceita áudio como input_audio ou como URL inline
+            payload = {
+                "model": self.openrouter_model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": """Transcreva este áudio em português brasileiro.
+Retorne APENAS o texto transcrito, sem explicações ou formatação adicional.
+Se o áudio estiver inaudível ou vazio, retorne: [INAUDÍVEL]"""
+                            },
+                            {
+                                "type": "input_audio",
+                                "input_audio": {
+                                    "data": audio_base64,
+                                    "format": audio_format
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "max_tokens": 500
+            }
+
+            print(f"[Gemini Audio] Usando modelo: {self.openrouter_model}")
+
+            response = requests.post(url, headers=headers, json=payload, timeout=60)
+
+            if response.status_code == 200:
+                texto = response.json()['choices'][0]['message']['content'].strip()
+                print(f"[Gemini Audio] Transcrição: {texto[:100]}...")
+                if texto and texto != "[INAUDÍVEL]":
+                    return texto, True
+                else:
+                    print("[Gemini Audio] Áudio inaudível")
+                    return "", False
+            else:
+                print(f"[Gemini Audio] Erro: {response.status_code} - {response.text[:200]}")
+                return "", False
+
+        except Exception as e:
+            print(f"[Gemini Audio] Erro ao transcrever: {e}")
+            return "", False
+
+    def _transcrever_com_whisper(self, audio_url: str) -> Tuple[str, bool]:
+        """Transcreve áudio usando OpenAI Whisper API (fallback)"""
         if not self.openai_api_key:
             print("[Whisper] OPENAI_API_KEY não configurada")
             return "", False
@@ -282,24 +392,40 @@ Exemplos:
             else:
                 mime_type = 'image/jpeg'
 
-            prompt_texto = f"""Analise esta imagem de um comprovante, nota fiscal ou recibo e extraia as informações financeiras.
+            prompt_texto = f"""Você é um assistente financeiro especializado em analisar imagens de documentos financeiros.
 
-{"Contexto adicional do usuário: " + caption if caption else ""}
+Analise esta imagem cuidadosamente. Pode ser:
+- Nota fiscal / cupom fiscal
+- Comprovante de pagamento (PIX, cartão, transferência)
+- Recibo
+- Boleto
+- Extrato bancário
+- Qualquer documento com informação financeira
+- Ou uma imagem comum (foto, print, etc.)
 
-Retorne APENAS um JSON válido (sem markdown) com:
+{"O usuário disse: " + caption if caption else ""}
+
+INSTRUÇÕES:
+1. Se conseguir identificar um documento financeiro com valor claro, extraia os dados
+2. Se a imagem estiver borrada, cortada ou ilegível, pergunte ao usuário
+3. Se for uma imagem comum (não financeira), pergunte o que o usuário deseja registrar
+4. Se tiver múltiplos valores, pergunte qual é o valor principal
+
+Retorne APENAS um JSON válido (sem markdown, sem ```):
 {{
-  "tipo": "despesa" (para compras/pagamentos) ou "receita" (para recebimentos),
-  "valor": número decimal do valor total,
-  "descricao": "descrição do que foi comprado/recebido",
+  "entendeu": true ou false,
+  "tipo": "despesa" ou "receita" (se entendeu),
+  "valor": número decimal do valor total (se entendeu),
+  "descricao": "descrição clara do que foi comprado/pago",
   "estabelecimento": "nome do estabelecimento se visível",
-  "categoria_sugerida": uma dessas categorias: "Alimentação", "Transporte", "Saúde", "Educação", "Lazer", "Casa", "Vestuário", "Outros",
-  "data_documento": "YYYY-MM-DD" se visível na imagem ou null,
-  "confianca": número de 0 a 1 baseado na clareza da imagem,
-  "entendeu": true se conseguiu extrair valor, false se não,
-  "pergunta": null se entendeu, ou pergunta de esclarecimento
+  "categoria_sugerida": "Alimentação", "Transporte", "Combustível", "Saúde", "Educação", "Lazer", "Casa", "Vestuário", "Mercado", "Restaurante", "Farmácia" ou "Outros",
+  "data_documento": "YYYY-MM-DD" se visível ou null,
+  "confianca": número de 0.0 a 1.0 baseado na clareza,
+  "pergunta": null se entendeu tudo, ou "sua pergunta aqui" se precisar de esclarecimento,
+  "observacoes": "detalhes extras que notou na imagem"
 }}
 
-Se não conseguir ler a imagem claramente, retorne confianca baixa e entendeu: false.
+IMPORTANTE: Se não entendeu ou precisa de mais informações, coloque entendeu: false e faça uma pergunta clara e amigável.
 """
 
             url = "https://openrouter.ai/api/v1/chat/completions"
@@ -309,8 +435,9 @@ Se não conseguir ler a imagem claramente, retorne confianca baixa e entendeu: f
                 "Content-Type": "application/json"
             }
 
+            # Usa o modelo configurado (ex: google/gemini-2.5-flash)
             payload = {
-                "model": "openai/gpt-4o-mini",
+                "model": self.openrouter_model,
                 "messages": [
                     {
                         "role": "user",
@@ -323,8 +450,10 @@ Se não conseguir ler a imagem claramente, retorne confianca baixa e entendeu: f
                         ]
                     }
                 ],
-                "max_tokens": 500
+                "max_tokens": 1000
             }
+
+            print(f"[Vision] Usando modelo: {self.openrouter_model}")
 
             response = requests.post(url, headers=headers, json=payload, timeout=60)
 
@@ -354,6 +483,103 @@ Se não conseguir ler a imagem claramente, retorne confianca baixa e entendeu: f
         except Exception as e:
             print(f"[Vision] Erro ao processar imagem: {e}")
             return self._resultado_imagem_erro()
+
+    def extrair_de_imagem_base64(self, base64_data: str, mimetype: str = "image/jpeg", caption: str = "") -> Dict:
+        """Extrai informações de imagem a partir de base64 (mídia já descriptografada)"""
+        try:
+            print(f"[Vision] Processando imagem base64 ({len(base64_data)} chars)")
+
+            prompt_texto = self._get_prompt_visao(caption)
+
+            url = "https://openrouter.ai/api/v1/chat/completions"
+
+            headers = {
+                "Authorization": f"Bearer {self.openrouter_api_key}",
+                "Content-Type": "application/json"
+            }
+
+            payload = {
+                "model": self.openrouter_model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt_texto},
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{mimetype};base64,{base64_data}"}
+                            }
+                        ]
+                    }
+                ],
+                "max_tokens": 1000
+            }
+
+            print(f"[Vision] Usando modelo: {self.openrouter_model}")
+
+            response = requests.post(url, headers=headers, json=payload, timeout=60)
+
+            if response.status_code == 200:
+                content = response.json()['choices'][0]['message']['content']
+                resultado = self._parsear_resposta_llm(content)
+
+                if resultado.get('data_documento'):
+                    try:
+                        resultado['data_transacao'] = datetime.strptime(
+                            resultado['data_documento'], "%Y-%m-%d"
+                        )
+                    except:
+                        resultado['data_transacao'] = datetime.now()
+                else:
+                    resultado['data_transacao'] = datetime.now()
+
+                print(f"[Vision] Extração base64: valor={resultado.get('valor')}, tipo={resultado.get('tipo')}")
+                return resultado
+            else:
+                print(f"[Vision] Erro: {response.status_code} - {response.text}")
+                return self._resultado_imagem_erro()
+
+        except Exception as e:
+            print(f"[Vision] Erro ao processar imagem base64: {e}")
+            return self._resultado_imagem_erro()
+
+    def _get_prompt_visao(self, caption: str = "") -> str:
+        """Retorna o prompt padrão para análise de imagem"""
+        return f"""Você é um assistente financeiro especializado em analisar imagens de documentos financeiros.
+
+Analise esta imagem cuidadosamente. Pode ser:
+- Nota fiscal / cupom fiscal
+- Comprovante de pagamento (PIX, cartão, transferência)
+- Recibo
+- Boleto
+- Extrato bancário
+- Qualquer documento com informação financeira
+- Ou uma imagem comum (foto, print, etc.)
+
+{"O usuário disse: " + caption if caption else ""}
+
+INSTRUÇÕES:
+1. Se conseguir identificar um documento financeiro com valor claro, extraia os dados
+2. Se a imagem estiver borrada, cortada ou ilegível, pergunte ao usuário
+3. Se for uma imagem comum (não financeira), pergunte o que o usuário deseja registrar
+4. Se tiver múltiplos valores, pergunte qual é o valor principal
+
+Retorne APENAS um JSON válido (sem markdown, sem ```):
+{{
+  "entendeu": true ou false,
+  "tipo": "despesa" ou "receita" (se entendeu),
+  "valor": número decimal do valor total (se entendeu),
+  "descricao": "descrição clara do que foi comprado/pago",
+  "estabelecimento": "nome do estabelecimento se visível",
+  "categoria_sugerida": "Alimentação", "Transporte", "Combustível", "Saúde", "Educação", "Lazer", "Casa", "Vestuário", "Mercado", "Restaurante", "Farmácia" ou "Outros",
+  "data_documento": "YYYY-MM-DD" se visível ou null,
+  "confianca": número de 0.0 a 1.0 baseado na clareza,
+  "pergunta": null se entendeu tudo, ou "sua pergunta aqui" se precisar de esclarecimento,
+  "observacoes": "detalhes extras que notou na imagem"
+}}
+
+IMPORTANTE: Se não entendeu ou precisa de mais informações, coloque entendeu: false e faça uma pergunta clara e amigável.
+"""
 
     def _resultado_imagem_erro(self) -> Dict:
         """Retorna resultado padrão quando não consegue processar imagem"""

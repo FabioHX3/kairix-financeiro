@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv
+venv
+ENV
+
+# IDEs
+.idea
+.vscode
+*.swp
+*.swo
+
+# Testes
+.pytest_cache
+.coverage
+htmlcov
+
+# Logs
+*.log
+logs
+
+# Ambiente
+.env.local
+.env.*.local
+
+# Docs desnecessários
+*.md
+!README.md
+docs
+
+# Arquivos temporários
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# OpenAPI spec grande
+uazapi-openapi-spec.yaml

@@ -33,6 +33,9 @@ class Settings:
     # OpenAI (Whisper)
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
+    # Redis (para cache/sessões)
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
     # WhatsApp API (Evolution ou similar)
     WHATSAPP_API_URL: str = os.getenv("WHATSAPP_API_URL", "")
     WHATSAPP_API_KEY: str = os.getenv("WHATSAPP_API_KEY", "")
