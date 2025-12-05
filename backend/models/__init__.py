@@ -9,5 +9,6 @@ from backend.models.models import (
     OrigemRegistro,
     CATEGORIAS_PADRAO,
     criar_tabelas,
-    inserir_categorias_padrao
+    inserir_categorias_padrao,
+    gerar_codigo_unico
 )

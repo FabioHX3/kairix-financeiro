@@ -3,10 +3,45 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
+import secrets
+import string
 
 from backend.core.database import engine, SessionLocal
 
 Base = declarative_base()
+
+
+def _gerar_codigo_formato() -> str:
+    """Gera código no formato LL+NN+L (ex: AB12C) - mais legível que aleatório puro"""
+    letras = string.ascii_uppercase
+    numeros = string.digits
+    return (
+        secrets.choice(letras) +
+        secrets.choice(letras) +
+        secrets.choice(numeros) +
+        secrets.choice(numeros) +
+        secrets.choice(letras)
+    )
+
+
+def gerar_codigo_unico(db=None) -> str:
+    """
+    Gera código único no formato LL+NN+L (ex: AB12C).
+    Se db for fornecido, verifica unicidade no banco.
+    """
+    max_tentativas = 10
+    for _ in range(max_tentativas):
+        codigo = _gerar_codigo_formato()
+        if db is None:
+            return codigo
+        # Verifica se já existe no banco
+        from backend.models.models import Transacao
+        existente = db.query(Transacao).filter(Transacao.codigo == codigo).first()
+        if not existente:
+            return codigo
+    # Fallback: adiciona timestamp se todas tentativas falharem (improvável)
+    import time
+    return _gerar_codigo_formato() + str(int(time.time()))[-2:]
 
 
 class TipoTransacao(str, enum.Enum):
@@ -83,6 +118,7 @@ class Transacao(Base):
     __tablename__ = "transacoes"
 
     id = Column(Integer, primary_key=True, index=True)
+    codigo = Column(String(5), unique=True, index=True, default=gerar_codigo_unico)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     categoria_id = Column(Integer, ForeignKey("categorias.id"), nullable=True)
     membro_familia_id = Column(Integer, ForeignKey("membros_familia.id"), nullable=True)

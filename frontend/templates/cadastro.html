@@ -107,17 +107,29 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="whatsapp">WhatsApp (com DDD)</label>
-                    <input
-                        type="tel"
-                        id="whatsapp"
-                        class="form-control"
-                        placeholder="11999999999"
-                        required
-                    >
-                    <small style="color: rgba(255, 255, 255, 0.6);">
-                        Usado para receber e enviar transações
-                    </small>
+                    <label for="whatsapp">WhatsApp</label>
+                    <div style="display: flex; gap: 10px;">
+                        <select id="paisCodigo" class="form-control" style="width: 140px; flex-shrink: 0;" onchange="atualizarMascara()">
+                            <option value="55" data-mask="(00) 00000-0000">🇧🇷 +55</option>
+                            <option value="1" data-mask="(000) 000-0000">🇺🇸 +1</option>
+                            <option value="351" data-mask="000 000 000">🇵🇹 +351</option>
+                            <option value="34" data-mask="000 000 000">🇪🇸 +34</option>
+                            <option value="44" data-mask="0000 000 0000">🇬🇧 +44</option>
+                            <option value="49" data-mask="0000 0000000">🇩🇪 +49</option>
+                            <option value="33" data-mask="0 00 00 00 00">🇫🇷 +33</option>
+                            <option value="39" data-mask="000 000 0000">🇮🇹 +39</option>
+                            <option value="81" data-mask="00-0000-0000">🇯🇵 +81</option>
+                            <option value="86" data-mask="000 0000 0000">🇨🇳 +86</option>
+                        </select>
+                        <input
+                            type="tel"
+                            id="whatsapp"
+                            class="form-control"
+                            placeholder="(00) 00000-0000"
+                            required
+                            style="flex: 1;"
+                        >
+                    </div>
                 </div>
 
                 <div class="form-group">
@@ -182,6 +194,51 @@
             }
         }
 
+        // Máscaras de telefone por país
+        const mascaras = {
+            '55': { mask: '(00) 00000-0000', placeholder: '(00) 00000-0000' },
+            '1': { mask: '(000) 000-0000', placeholder: '(000) 000-0000' },
+            '351': { mask: '000 000 000', placeholder: '000 000 000' },
+            '34': { mask: '000 000 000', placeholder: '000 000 000' },
+            '44': { mask: '0000 000 0000', placeholder: '0000 000 0000' },
+            '49': { mask: '0000 0000000', placeholder: '0000 0000000' },
+            '33': { mask: '0 00 00 00 00', placeholder: '0 00 00 00 00' },
+            '39': { mask: '000 000 0000', placeholder: '000 000 0000' },
+            '81': { mask: '00-0000-0000', placeholder: '00-0000-0000' },
+            '86': { mask: '000 0000 0000', placeholder: '000 0000 0000' }
+        };
+
+        function atualizarMascara() {
+            const select = document.getElementById('paisCodigo');
+            const input = document.getElementById('whatsapp');
+            const pais = select.value;
+            const config = mascaras[pais] || mascaras['55'];
+            input.placeholder = config.placeholder;
+            input.value = '';
+        }
+
+        function aplicarMascara(valor, mascara) {
+            let resultado = '';
+            let indexValor = 0;
+            const numeros = valor.replace(/\D/g, '');
+
+            for (let i = 0; i < mascara.length && indexValor < numeros.length; i++) {
+                if (mascara[i] === '0') {
+                    resultado += numeros[indexValor];
+                    indexValor++;
+                } else {
+                    resultado += mascara[i];
+                }
+            }
+            return resultado;
+        }
+
+        document.getElementById('whatsapp').addEventListener('input', function(e) {
+            const pais = document.getElementById('paisCodigo').value;
+            const config = mascaras[pais] || mascaras['55'];
+            e.target.value = aplicarMascara(e.target.value, config.mask);
+        });
+
         const cadastroForm = document.getElementById('cadastroForm');
         const alertDiv = document.getElementById('alert');
 
@@ -190,7 +247,9 @@
 
             const nome = document.getElementById('nome').value;
             const email = document.getElementById('email').value;
-            const whatsapp = document.getElementById('whatsapp').value;
+            const paisCodigo = document.getElementById('paisCodigo').value;
+            const whatsappNumero = document.getElementById('whatsapp').value.replace(/\D/g, ''); // Remove não-dígitos
+            const whatsapp = paisCodigo + whatsappNumero; // Concatena DDI + número
             const senha = document.getElementById('senha').value;
             const confirmarSenha = document.getElementById('confirmarSenha').value;
 
@@ -198,6 +257,15 @@
             alertDiv.innerHTML = '';
 
             // Validações
+            if (whatsappNumero.length < 8) {
+                alertDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        Número de WhatsApp inválido. Digite DDD + número.
+                    </div>
+                `;
+                return;
+            }
+
             if (senha !== confirmarSenha) {
                 alertDiv.innerHTML = `
                     <div class="alert alert-danger">

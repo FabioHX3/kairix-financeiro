@@ -6,7 +6,7 @@ from pathlib import Path
 
 from backend.core.database import get_db
 from backend.core.security import obter_usuario_atual
-from backend.models import Usuario, Transacao, Categoria, TipoTransacao, StatusTransacao
+from backend.models import Usuario, Transacao, Categoria, TipoTransacao, StatusTransacao, gerar_codigo_unico
 from backend.schemas import (
     TransacaoCriar, TransacaoResposta, TransacaoAtualizar, ResumoPeriodo
 )
@@ -39,7 +39,11 @@ async def criar_transacao(
                 detail="Categoria não pertence ao usuário"
             )
 
+    # Gera código único (com verificação no banco)
+    codigo = gerar_codigo_unico(db)
+
     nova_transacao = Transacao(
+        codigo=codigo,
         usuario_id=usuario_atual.id,
         **transacao.model_dump()
     )

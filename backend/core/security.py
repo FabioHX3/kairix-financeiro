@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -10,18 +10,17 @@ from sqlalchemy.orm import Session
 from backend.config import settings
 from backend.core.database import get_db
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 def verificar_senha(senha_plana: str, senha_hash: str) -> bool:
     """Verifica se a senha está correta"""
-    return pwd_context.verify(senha_plana, senha_hash)
+    return bcrypt.checkpw(senha_plana.encode('utf-8'), senha_hash.encode('utf-8'))
 
 
 def gerar_hash_senha(senha: str) -> str:
     """Gera hash da senha"""
-    return pwd_context.hash(senha)
+    return bcrypt.hashpw(senha.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
 
 
 def criar_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

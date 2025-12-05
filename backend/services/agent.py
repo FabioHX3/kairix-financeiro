@@ -1,11 +1,12 @@
 """
 Agente Financeiro com LangChain
-- Memória de conversa por usuário
+- Memória de conversa por usuário (Redis para persistência)
 - Tools para registrar transações
 - Processamento inteligente de mensagens
 """
 
 import json
+import redis
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 
@@ -39,57 +40,135 @@ class RespostaAgente(BaseModel):
 
 
 # ============================================================================
-# MEMÓRIA DE CONVERSA
+# MEMÓRIA DE CONVERSA COM REDIS
 # ============================================================================
 
 class MemoriaUsuarios:
-    """Gerencia memória de conversa por usuário (in-memory para MVP)"""
+    """
+    Gerencia memória de conversa por usuário usando Redis para persistência.
+    - Histórico de mensagens persiste entre reinicializações
+    - Contextos pendentes (aguardando confirmação) também persistem
+    - TTL de 24h para limpeza automática de conversas antigas
+    """
 
-    def __init__(self, max_messages: int = 20):
-        self._memorias: Dict[str, List[Dict]] = {}
-        self._contextos: Dict[str, Dict] = {}  # Contexto pendente (ex: aguardando valor)
+    def __init__(self, max_messages: int = 20, ttl_hours: int = 24):
         self.max_messages = max_messages
+        self.ttl_seconds = ttl_hours * 3600
+
+        # Conecta ao Redis
+        try:
+            self._redis = redis.from_url(settings.REDIS_URL, decode_responses=True)
+            self._redis.ping()
+            print("[Memória] Conectado ao Redis para persistência de conversas")
+        except Exception as e:
+            print(f"[Memória] Redis não disponível, usando fallback in-memory: {e}")
+            self._redis = None
+
+        # Fallback in-memory caso Redis não esteja disponível
+        self._memorias_fallback: Dict[str, List[Dict]] = {}
+        self._contextos_fallback: Dict[str, Dict] = {}
+
+    def _key_historico(self, user_id: str) -> str:
+        """Gera chave Redis para histórico"""
+        return f"kairix:chat:{user_id}:historico"
+
+    def _key_contexto(self, user_id: str) -> str:
+        """Gera chave Redis para contexto"""
+        return f"kairix:chat:{user_id}:contexto"
 
     def get_historico(self, user_id: str) -> List[Dict]:
         """Retorna histórico de mensagens do usuário"""
-        return self._memorias.get(user_id, [])
+        if self._redis:
+            try:
+                data = self._redis.get(self._key_historico(user_id))
+                if data:
+                    return json.loads(data)
+                return []
+            except Exception as e:
+                print(f"[Memória] Erro ao ler histórico: {e}")
+                return self._memorias_fallback.get(user_id, [])
+        return self._memorias_fallback.get(user_id, [])
 
     def add_mensagem(self, user_id: str, role: str, content: str):
         """Adiciona mensagem ao histórico"""
-        if user_id not in self._memorias:
-            self._memorias[user_id] = []
+        historico = self.get_historico(user_id)
 
-        self._memorias[user_id].append({
+        historico.append({
             "role": role,
             "content": content,
             "timestamp": datetime.now().isoformat()
         })
 
         # Mantém apenas as últimas N mensagens
-        if len(self._memorias[user_id]) > self.max_messages:
-            self._memorias[user_id] = self._memorias[user_id][-self.max_messages:]
+        if len(historico) > self.max_messages:
+            historico = historico[-self.max_messages:]
+
+        if self._redis:
+            try:
+                self._redis.setex(
+                    self._key_historico(user_id),
+                    self.ttl_seconds,
+                    json.dumps(historico)
+                )
+            except Exception as e:
+                print(f"[Memória] Erro ao salvar histórico: {e}")
+                self._memorias_fallback[user_id] = historico
+        else:
+            self._memorias_fallback[user_id] = historico
 
     def get_contexto(self, user_id: str) -> Dict:
         """Retorna contexto pendente do usuário"""
-        return self._contextos.get(user_id, {})
+        if self._redis:
+            try:
+                data = self._redis.get(self._key_contexto(user_id))
+                if data:
+                    return json.loads(data)
+                return {}
+            except Exception as e:
+                print(f"[Memória] Erro ao ler contexto: {e}")
+                return self._contextos_fallback.get(user_id, {})
+        return self._contextos_fallback.get(user_id, {})
 
     def set_contexto(self, user_id: str, contexto: Dict):
         """Define contexto pendente"""
-        self._contextos[user_id] = contexto
+        if self._redis:
+            try:
+                # Contexto expira em 1 hora (usuário deve confirmar em tempo razoável)
+                self._redis.setex(
+                    self._key_contexto(user_id),
+                    3600,  # 1 hora
+                    json.dumps(contexto)
+                )
+            except Exception as e:
+                print(f"[Memória] Erro ao salvar contexto: {e}")
+                self._contextos_fallback[user_id] = contexto
+        else:
+            self._contextos_fallback[user_id] = contexto
 
     def limpar_contexto(self, user_id: str):
         """Limpa contexto pendente"""
-        if user_id in self._contextos:
-            del self._contextos[user_id]
+        if self._redis:
+            try:
+                self._redis.delete(self._key_contexto(user_id))
+            except Exception as e:
+                print(f"[Memória] Erro ao limpar contexto: {e}")
+        if user_id in self._contextos_fallback:
+            del self._contextos_fallback[user_id]
 
     def limpar_historico(self, user_id: str):
         """Limpa histórico do usuário"""
-        if user_id in self._memorias:
-            del self._memorias[user_id]
+        if self._redis:
+            try:
+                self._redis.delete(self._key_historico(user_id))
+                self._redis.delete(self._key_contexto(user_id))
+            except Exception as e:
+                print(f"[Memória] Erro ao limpar histórico: {e}")
+        if user_id in self._memorias_fallback:
+            del self._memorias_fallback[user_id]
         self.limpar_contexto(user_id)
 
 
-# Instância global de memória
+# Instância global de memória (agora com Redis)
 memoria = MemoriaUsuarios()
 
 
@@ -128,6 +207,12 @@ SUAS CAPACIDADES:
 3. Transcrever áudios com informações financeiras
 4. Lembrar do contexto da conversa anterior
 5. Perguntar quando algo não está claro
+
+IMPORTANTE - CONTEXTO DE TRANSAÇÕES:
+- Você receberá uma lista das ÚLTIMAS TRANSAÇÕES do usuário
+- Quando o usuário perguntar sobre "essa", "a última", "foi salva", "registrou" - SEMPRE consulte a lista de últimas transações
+- A PRIMEIRA transação da lista é a MAIS RECENTE (última registrada)
+- Use os dados reais das transações (valor, data, descrição) para responder
 
 CATEGORIAS DISPONÍVEIS:
 DESPESAS: Alimentação, Transporte, Saúde, Educação, Lazer, Casa, Vestuário, Outros
@@ -236,8 +321,11 @@ DATA DE HOJE: {data_hoje}
             nome_usuario = contexto_extra.get("nome_usuario", "")
             if nome_usuario:
                 contexto_msgs += f"\n\nNOME DO USUÁRIO: {nome_usuario} (use esse nome para se referir ao usuário de forma personalizada)"
-            else:
-                contexto_msgs += f"\n\nCONTEXTO EXTRA: {json.dumps(contexto_extra)}"
+
+            ultimas_transacoes = contexto_extra.get("ultimas_transacoes", "")
+            if ultimas_transacoes:
+                contexto_msgs += f"\n\nÚLTIMAS TRANSAÇÕES DO USUÁRIO (mais recente primeiro):\n{ultimas_transacoes}\n(Use essas informações para responder perguntas sobre transações recentes)"
+                print(f"[Agente] Contexto transações:\n{ultimas_transacoes}")
 
         # System prompt com data atual
         system = self.system_prompt.replace("{data_hoje}", datetime.now().strftime("%Y-%m-%d"))

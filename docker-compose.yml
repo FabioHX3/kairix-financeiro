@@ -11,7 +11,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
     ports:
-      - "5432:5432"
+      - "5414:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kairix} -d ${POSTGRES_DB:-kairix_financeiro}"]
       interval: 10s
@@ -26,7 +26,7 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"
+      - "6314:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -42,6 +42,8 @@ services:
       dockerfile: Dockerfile
     container_name: kairix_backend
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       # Servidor
       HOST: 0.0.0.0
@@ -80,6 +82,36 @@ services:
       # Para desenvolvimento: hot reload
       - ./backend:/app/backend:ro
       - ./frontend:/app/frontend:ro
+    networks:
+      - default
+      - proxy
+    labels:
+      # Labels gerais
+      - "com.docker.stack=kairixfinanceiro"
+      - "com.docker.service=kairix-backend"
+
+      # Traefik configuração
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+
+      # Roteamento HTTP (redireciona para HTTPS)
+      - "traefik.http.routers.financeiro.rule=Host(financeiro.kairix.com.br)"
+      - "traefik.http.routers.financeiro.entrypoints=http"
+      - "traefik.http.routers.financeiro.middlewares=redirect-to-https@docker"
+
+      # Roteamento HTTPS
+      - "traefik.http.routers.financeiro-secure.rule=Host(financeiro.kairix.com.br)"
+      - "traefik.http.routers.financeiro-secure.entrypoints=https"
+      - "traefik.http.routers.financeiro-secure.tls=true"
+      - "traefik.http.routers.financeiro-secure.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.financeiro-secure.service=financeiro-service"
+
+      # Middleware para redirect HTTP -> HTTPS
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+
+      # Serviço - porta interna do container
+      - "traefik.http.services.financeiro-service.loadbalancer.server.port=8014"
 
 volumes:
   postgres_data:
@@ -88,3 +120,5 @@ volumes:
 networks:
   default:
     name: kairix_network
+  proxy:
+    external: true

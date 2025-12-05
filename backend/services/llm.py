@@ -594,6 +594,168 @@ IMPORTANTE: Se não entendeu ou precisa de mais informações, coloque entendeu:
             "pergunta": "Não consegui ler a imagem. Pode me dizer o valor e o que foi?"
         }
 
+    def extrair_extrato_multiplo(self, base64_data: str, mimetype: str = "image/jpeg", caption: str = "") -> Dict:
+        """
+        Extrai MÚLTIPLAS transações de um extrato bancário/fatura.
+        Retorna lista de transações para registro em lote.
+        """
+        try:
+            print(f"[Vision Extrato] Processando extrato ({len(base64_data)} chars)")
+
+            prompt = f"""Você é um especialista em analisar documentos financeiros.
+
+Analise esta imagem e identifique o tipo de documento.
+
+{"Contexto do usuário: " + caption if caption else ""}
+
+TIPOS DE DOCUMENTO:
+1. "extrato_bancario" - Extrato de conta corrente com múltiplas transações
+2. "fatura_cartao" - Fatura de cartão de crédito
+3. "documento_fiscal" - DAS, DARF, Simples Nacional, guias de impostos, notas fiscais
+4. "comprovante" - Comprovante de pagamento único (PIX, transferência)
+5. "outro" - Outros documentos
+
+REGRAS IMPORTANTES:
+- Para EXTRATO/FATURA: extraia cada transação individualmente
+- Para DOCUMENTO FISCAL (DAS, Simples Nacional, DARF, guias): NÃO quebre em itens, retorne valor_total único
+- Para COMPROVANTE único: retorne como transação única
+
+Retorne APENAS um JSON válido (sem markdown):
+{{
+  "tipo_documento": "extrato_bancario" | "fatura_cartao" | "documento_fiscal" | "comprovante" | "outro",
+  "banco_ou_emissor": "nome do banco/órgão emissor",
+  "periodo": "período/competência se visível",
+  "valor_total": número (para documento_fiscal ou comprovante),
+  "descricao_documento": "descrição do documento fiscal",
+  "data_vencimento": "YYYY-MM-DD" se visível,
+  "transacoes": [
+    {{
+      "data": "YYYY-MM-DD",
+      "descricao": "descrição da transação",
+      "valor": número positivo,
+      "tipo": "despesa" ou "receita",
+      "categoria_sugerida": "categoria"
+    }}
+  ],
+  "observacoes": "observações"
+}}
+
+CATEGORIAS:
+- Impostos/DAS/Simples Nacional/DARF: "Impostos"
+- PIX/Transferência: "Transferência"
+- Uber/99: "Transporte"
+- Alimentação/restaurante: "Alimentação"
+- Mercado: "Mercado"
+- Outros: "Outros"
+
+Para documento fiscal, retorne transacoes vazio e preencha valor_total e descricao_documento.
+"""
+
+            url = "https://openrouter.ai/api/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {self.openrouter_api_key}",
+                "Content-Type": "application/json"
+            }
+
+            payload = {
+                "model": self.openrouter_model,
+                "messages": [{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{mimetype};base64,{base64_data}"}
+                        }
+                    ]
+                }],
+                "max_tokens": 4000  # Mais tokens para extratos longos
+            }
+
+            response = requests.post(url, headers=headers, json=payload, timeout=90)
+
+            if response.status_code == 200:
+                content = response.json()['choices'][0]['message']['content']
+                resultado = self._parsear_resposta_llm(content)
+
+                # Converte datas
+                for t in resultado.get('transacoes', []):
+                    if t.get('data'):
+                        try:
+                            t['data_transacao'] = datetime.strptime(t['data'], "%Y-%m-%d")
+                        except:
+                            t['data_transacao'] = datetime.now()
+                    else:
+                        t['data_transacao'] = datetime.now()
+
+                print(f"[Vision Extrato] Extraídas {len(resultado.get('transacoes', []))} transações")
+                return resultado
+            else:
+                print(f"[Vision Extrato] Erro: {response.status_code}")
+                return {"tipo_documento": "erro", "transacoes": [], "observacoes": "Erro ao processar"}
+
+        except Exception as e:
+            print(f"[Vision Extrato] Erro: {e}")
+            return {"tipo_documento": "erro", "transacoes": [], "observacoes": str(e)}
+
+    def extrair_de_pdf_base64(self, base64_data: str) -> Dict:
+        """
+        Extrai transações de um PDF de extrato bancário.
+        Converte PDF para imagens e processa cada página.
+        """
+        try:
+            import fitz  # PyMuPDF
+
+            print(f"[PDF] Processando PDF ({len(base64_data)} chars)")
+
+            # Decodifica base64 para bytes
+            pdf_bytes = base64.b64decode(base64_data)
+
+            # Abre o PDF
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+            todas_transacoes = []
+            info_documento = {}
+
+            for page_num in range(min(doc.page_count, 5)):  # Máximo 5 páginas
+                page = doc[page_num]
+
+                # Converte página para imagem
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x zoom para melhor qualidade
+                img_bytes = pix.tobytes("png")
+                img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+
+                # Processa a imagem da página
+                resultado = self.extrair_extrato_multiplo(img_base64, "image/png")
+
+                if resultado.get('transacoes'):
+                    todas_transacoes.extend(resultado['transacoes'])
+
+                if not info_documento and resultado.get('banco_ou_emissor'):
+                    info_documento = {
+                        'tipo_documento': resultado.get('tipo_documento'),
+                        'banco_ou_emissor': resultado.get('banco_ou_emissor'),
+                        'periodo': resultado.get('periodo')
+                    }
+
+            doc.close()
+
+            print(f"[PDF] Total de {len(todas_transacoes)} transações extraídas de {doc.page_count} páginas")
+
+            return {
+                **info_documento,
+                'transacoes': todas_transacoes,
+                'total_transacoes': len(todas_transacoes),
+                'paginas_processadas': min(doc.page_count, 5)
+            }
+
+        except ImportError:
+            print("[PDF] PyMuPDF não instalado, usando fallback")
+            return {"tipo_documento": "erro", "transacoes": [], "observacoes": "Suporte a PDF não disponível"}
+        except Exception as e:
+            print(f"[PDF] Erro: {e}")
+            return {"tipo_documento": "erro", "transacoes": [], "observacoes": str(e)}
+
     def gerar_mensagem_confirmacao(self, transacao_info: Dict, transacao_id: int = None) -> str:
         """Gera mensagem de confirmação para enviar ao usuário"""
         tipo_emoji = "💸" if transacao_info['tipo'] == 'despesa' else "💰"

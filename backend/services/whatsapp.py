@@ -84,7 +84,9 @@ class WhatsAppService:
                     return {"success": False, "error": response.text}
 
         except Exception as e:
-            print(f"[WhatsApp] Erro ao enviar: {e}")
+            import traceback
+            print(f"[WhatsApp] Erro ao enviar: {type(e).__name__}: {e}")
+            print(f"[WhatsApp] Traceback: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}
 
     async def enviar_imagem(
