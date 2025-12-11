@@ -12,7 +12,8 @@ from backend.routes import (
     whatsapp_router,
     familia_router,
     agendamentos_router,
-    preferencias_router
+    preferencias_router,
+    recorrencias_router
 )
 
 app = FastAPI(
@@ -39,6 +40,7 @@ app.include_router(whatsapp_router)
 app.include_router(familia_router)
 app.include_router(agendamentos_router)
 app.include_router(preferencias_router)
+app.include_router(recorrencias_router)
 
 # Static files
 app.mount("/static", StaticFiles(directory="frontend/static"), name="static")

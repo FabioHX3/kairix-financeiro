@@ -82,6 +82,8 @@ class Usuario(Base):
     membros_familia = relationship("MembroFamilia", back_populates="usuario")
     padroes = relationship("UserPattern", back_populates="usuario")
     preferencias = relationship("UserPreferences", back_populates="usuario", uselist=False)
+    recorrencias = relationship("RecurringTransaction", back_populates="usuario")
+    contas_agendadas = relationship("ScheduledBill", back_populates="usuario")
 
 
 class MembroFamilia(Base):
@@ -189,6 +191,121 @@ class UserPreferences(Base):
     usuario = relationship("Usuario", back_populates="preferencias")
 
 
+class FrequenciaRecorrencia(str, enum.Enum):
+    """Frequência de transações recorrentes"""
+    DIARIA = "diaria"
+    SEMANAL = "semanal"
+    QUINZENAL = "quinzenal"
+    MENSAL = "mensal"
+    BIMESTRAL = "bimestral"
+    TRIMESTRAL = "trimestral"
+    SEMESTRAL = "semestral"
+    ANUAL = "anual"
+
+
+class StatusRecorrencia(str, enum.Enum):
+    """Status da recorrência"""
+    ATIVA = "ativa"
+    PAUSADA = "pausada"
+    CANCELADA = "cancelada"
+
+
+class RecurringTransaction(Base):
+    """
+    Transações recorrentes detectadas automaticamente.
+    Ex: Netflix todo mês, salário todo dia 5, etc.
+    """
+    __tablename__ = "recurring_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    categoria_id = Column(Integer, ForeignKey("categorias.id"), nullable=True)
+
+    # Padrão de identificação
+    descricao_padrao = Column(String(255), nullable=False)
+    tipo = Column(Enum(TipoTransacao), nullable=False)
+
+    # Valores
+    valor_medio = Column(Float, nullable=False)
+    valor_minimo = Column(Float)
+    valor_maximo = Column(Float)
+
+    # Frequência detectada
+    frequencia = Column(Enum(FrequenciaRecorrencia), default=FrequenciaRecorrencia.MENSAL)
+    dia_mes = Column(Integer, nullable=True)  # Dia do mês (1-31)
+    dia_semana = Column(Integer, nullable=True)  # Dia da semana (0-6, 0=segunda)
+
+    # Controle
+    status = Column(Enum(StatusRecorrencia), default=StatusRecorrencia.ATIVA)
+    auto_confirmar = Column(Boolean, default=False)  # Auto-registrar quando detectar
+
+    # Estatísticas
+    ocorrencias = Column(Integer, default=0)
+    ultima_ocorrencia = Column(DateTime)
+    proxima_esperada = Column(DateTime)
+
+    # Detecção
+    detectada_automaticamente = Column(Boolean, default=True)
+    confianca_deteccao = Column(Float, default=0.5)
+
+    # Metadados
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    usuario = relationship("Usuario", back_populates="recorrencias")
+    categoria = relationship("Categoria")
+
+
+class StatusConta(str, enum.Enum):
+    """Status de conta agendada"""
+    PENDENTE = "pendente"
+    PAGA = "paga"
+    ATRASADA = "atrasada"
+    CANCELADA = "cancelada"
+
+
+class ScheduledBill(Base):
+    """
+    Contas agendadas/programadas.
+    Pode ser criada manualmente ou a partir de recorrência detectada.
+    """
+    __tablename__ = "scheduled_bills"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    categoria_id = Column(Integer, ForeignKey("categorias.id"), nullable=True)
+    recorrencia_id = Column(Integer, ForeignKey("recurring_transactions.id"), nullable=True)
+
+    # Dados da conta
+    descricao = Column(String(255), nullable=False)
+    valor = Column(Float, nullable=False)
+    tipo = Column(Enum(TipoTransacao), default=TipoTransacao.DESPESA)
+
+    # Vencimento
+    data_vencimento = Column(DateTime, nullable=False)
+    data_pagamento = Column(DateTime, nullable=True)
+
+    # Status
+    status = Column(Enum(StatusConta), default=StatusConta.PENDENTE)
+
+    # Alertas
+    alerta_enviado = Column(Boolean, default=False)
+    dias_antecedencia_alerta = Column(Integer, default=3)
+
+    # Vinculo com transação (quando paga)
+    transacao_id = Column(Integer, ForeignKey("transacoes.id"), nullable=True)
+
+    # Metadados
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    usuario = relationship("Usuario", back_populates="contas_agendadas")
+    categoria = relationship("Categoria")
+    recorrencia = relationship("RecurringTransaction")
+
+
 class Transacao(Base):
     __tablename__ = "transacoes"
 
@@ -197,6 +314,7 @@ class Transacao(Base):
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     categoria_id = Column(Integer, ForeignKey("categorias.id"), nullable=True)
     membro_familia_id = Column(Integer, ForeignKey("membros_familia.id"), nullable=True)
+    recorrencia_id = Column(Integer, ForeignKey("recurring_transactions.id"), nullable=True)
     tipo = Column(Enum(TipoTransacao), nullable=False)
     valor = Column(Float, nullable=False)
     descricao = Column(Text)
@@ -217,6 +335,7 @@ class Transacao(Base):
     usuario = relationship("Usuario", back_populates="transacoes")
     categoria = relationship("Categoria", back_populates="transacoes")
     membro_familia = relationship("MembroFamilia", back_populates="transacoes")
+    recorrencia = relationship("RecurringTransaction")
 
 
 # Categorias padrão
