@@ -1,0 +1,28 @@
+# antes de instalar valide se a rede externa ja existe:
+# docker network create kairix_network
+
+services:
+  redis:
+    image: redis:8-alpine
+    container_name: kairix_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6314:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kairix_network
+
+volumes:
+  redis_data:
+
+networks:
+  kairix_network:
+    name: kairix_network
+    external: true
