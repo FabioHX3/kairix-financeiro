@@ -80,6 +80,8 @@ class Usuario(Base):
     transacoes = relationship("Transacao", back_populates="usuario")
     categorias = relationship("Categoria", back_populates="usuario")
     membros_familia = relationship("MembroFamilia", back_populates="usuario")
+    padroes = relationship("UserPattern", back_populates="usuario")
+    preferencias = relationship("UserPreferences", back_populates="usuario", uselist=False)
 
 
 class MembroFamilia(Base):
@@ -113,6 +115,78 @@ class Categoria(Base):
     # Relacionamentos
     usuario = relationship("Usuario", back_populates="categorias")
     transacoes = relationship("Transacao", back_populates="categoria")
+
+
+class PersonalidadeIA(str, enum.Enum):
+    """Personalidades disponíveis para o assistente"""
+    FORMAL = "formal"
+    AMIGAVEL = "amigavel"
+    DIVERTIDO = "divertido"
+
+
+class UserPattern(Base):
+    """
+    Padrões aprendidos do usuário.
+    Mapeia palavras-chave para categorias baseado no histórico.
+    """
+    __tablename__ = "user_patterns"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    categoria_id = Column(Integer, ForeignKey("categorias.id"), nullable=False)
+
+    # Padrão de texto (normalizado, sem acentos, lowercase)
+    palavras_chave = Column(String(255), nullable=False, index=True)
+
+    # Tipo da transação associada
+    tipo = Column(Enum(TipoTransacao), nullable=False)
+
+    # Métricas de confiança
+    ocorrencias = Column(Integer, default=1)
+    confianca = Column(Float, default=0.5)  # 0.0 a 1.0
+
+    # Metadados
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    usuario = relationship("Usuario", back_populates="padroes")
+    categoria = relationship("Categoria")
+
+
+class UserPreferences(Base):
+    """
+    Preferências do usuário para o assistente.
+    """
+    __tablename__ = "user_preferences"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, unique=True)
+
+    # Personalidade do assistente
+    personalidade = Column(Enum(PersonalidadeIA), default=PersonalidadeIA.AMIGAVEL)
+
+    # Configurações de alertas
+    alertar_vencimentos = Column(Boolean, default=True)
+    dias_antes_vencimento = Column(Integer, default=3)
+    alertar_gastos_anomalos = Column(Boolean, default=True)
+    limite_anomalia_percentual = Column(Integer, default=30)  # Alerta se gastar 30% acima da média
+
+    # Resumos automáticos
+    resumo_diario = Column(Boolean, default=False)
+    resumo_semanal = Column(Boolean, default=True)
+    resumo_mensal = Column(Boolean, default=True)
+    horario_resumo = Column(String(5), default="09:00")  # HH:MM
+
+    # Auto-confirmação
+    auto_confirmar_confianca = Column(Float, default=0.90)  # Auto-confirma se confiança >= 90%
+
+    # Metadados
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    usuario = relationship("Usuario", back_populates="preferencias")
 
 
 class Transacao(Base):
