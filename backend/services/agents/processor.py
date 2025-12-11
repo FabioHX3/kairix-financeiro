@@ -1,0 +1,97 @@
+"""
+Processor - Ponto de entrada para processar mensagens com o novo sistema de agentes.
+
+Esta função pode ser usada no lugar do agente antigo gradualmente.
+"""
+
+from typing import Optional, Dict
+from datetime import datetime
+from sqlalchemy.orm import Session
+
+from backend.services.agents.base_agent import (
+    AgentContext,
+    AgentResponse,
+    OrigemMensagem
+)
+from backend.services.agents.gateway_agent import GatewayAgent
+
+
+async def processar_mensagem_v2(
+    usuario_id: int,
+    telefone: str,
+    mensagem: str,
+    origem: str = "whatsapp_texto",
+    db: Session = None,
+    media_url: str = None,
+    media_type: str = None,
+    contexto_extra: Dict = None
+) -> AgentResponse:
+    """
+    Processa mensagem usando o novo sistema multi-agente.
+
+    Args:
+        usuario_id: ID do usuário no banco
+        telefone: Número do WhatsApp
+        mensagem: Texto da mensagem
+        origem: Tipo de origem (whatsapp_texto, whatsapp_audio, etc)
+        db: Sessão do banco de dados
+        media_url: URL da mídia (se houver)
+        media_type: Tipo da mídia (audio, image, etc)
+        contexto_extra: Dados adicionais
+
+    Returns:
+        AgentResponse com resultado do processamento
+    """
+
+    # Mapeia origem
+    origem_map = {
+        "whatsapp_texto": OrigemMensagem.WHATSAPP_TEXTO,
+        "whatsapp_audio": OrigemMensagem.WHATSAPP_AUDIO,
+        "whatsapp_imagem": OrigemMensagem.WHATSAPP_IMAGEM,
+        "web": OrigemMensagem.WEB,
+        "api": OrigemMensagem.API,
+    }
+
+    origem_enum = origem_map.get(origem, OrigemMensagem.WHATSAPP_TEXTO)
+
+    # Cria contexto
+    context = AgentContext(
+        usuario_id=usuario_id,
+        telefone=telefone,
+        mensagem_original=mensagem,
+        origem=origem_enum,
+        media_url=media_url,
+        media_type=media_type,
+        historico_conversa=contexto_extra.get("historico", []) if contexto_extra else []
+    )
+
+    # Processa com Gateway Agent
+    gateway = GatewayAgent(db_session=db)
+
+    try:
+        response = await gateway.process(context)
+        return response
+
+    except Exception as e:
+        print(f"[Processor] Erro: {e}")
+        return AgentResponse(
+            sucesso=False,
+            mensagem="Desculpe, tive um problema. Pode repetir?"
+        )
+
+
+def converter_resposta_para_legado(response: AgentResponse) -> Dict:
+    """
+    Converte AgentResponse para o formato esperado pelo código legado.
+
+    Isso permite migração gradual sem quebrar o sistema existente.
+    """
+    return {
+        "acao": "registrar" if response.codigo_transacao else "conversar",
+        "mensagem": response.mensagem,
+        "transacao": {
+            "codigo": response.codigo_transacao,
+            **response.dados
+        } if response.codigo_transacao else None,
+        "aguardando": "confirmacao" if response.requer_confirmacao else None
+    }

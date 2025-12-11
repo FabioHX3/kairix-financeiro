@@ -60,6 +60,7 @@ class OrigemRegistro(str, enum.Enum):
     WHATSAPP_AUDIO = "whatsapp_audio"
     WHATSAPP_IMAGEM = "whatsapp_imagem"
     WEB = "web"
+    API = "api"
 
 
 class Usuario(Base):
