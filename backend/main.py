@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -13,13 +14,32 @@ from backend.routes import (
     familia_router,
     agendamentos_router,
     preferencias_router,
-    recorrencias_router
+    recorrencias_router,
+    alertas_router
 )
+from backend.services.scheduler_service import scheduler_service
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Gerencia ciclo de vida da aplicacao."""
+    # Startup
+    print("[*] Iniciando scheduler de tarefas...")
+    scheduler_service.start()
+    print("[*] Scheduler iniciado com sucesso")
+
+    yield
+
+    # Shutdown
+    print("[*] Parando scheduler...")
+    scheduler_service.stop()
+    print("[*] Scheduler parado")
 
 app = FastAPI(
     title="Kairix Financeiro API",
     description="API para gestão financeira com integração WhatsApp e IA",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # CORS
@@ -41,6 +61,7 @@ app.include_router(familia_router)
 app.include_router(agendamentos_router)
 app.include_router(preferencias_router)
 app.include_router(recorrencias_router)
+app.include_router(alertas_router)
 
 # Static files
 app.mount("/static", StaticFiles(directory="frontend/static"), name="static")

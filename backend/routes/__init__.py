@@ -7,3 +7,4 @@ from backend.routes.agendamentos import router as agendamentos_router
 from backend.routes.whatsapp import router as whatsapp_router
 from backend.routes.preferencias import router as preferencias_router
 from backend.routes.recorrencias import router as recorrencias_router
+from backend.routes.alertas import router as alertas_router
