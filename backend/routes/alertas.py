@@ -18,7 +18,7 @@ from backend.core.database import get_db
 from backend.core.security import obter_usuario_atual
 from backend.models import Usuario
 from backend.services.agents.proactive_agent import proactive_agent
-from backend.services.scheduler_service import scheduler_service
+from backend.services.queue_service import queue_service
 
 router = APIRouter(prefix="/api/alertas", tags=["Alertas"])
 
@@ -169,67 +169,105 @@ async def obter_resumo_mensal(
 
 
 # ============================================================================
-# ENDPOINTS - SCHEDULER (Admin)
+# ENDPOINTS - QUEUE (Jobs)
 # ============================================================================
 
-@router.get("/scheduler/jobs", response_model=List[JobResponse])
-async def listar_jobs(
+@router.post("/queue/verificar-usuario")
+async def enqueue_verificacao_usuario(
     usuario: Usuario = Depends(obter_usuario_atual)
 ):
     """
-    Lista todos os jobs agendados no scheduler.
+    Enfileira verificação de alertas para o usuário atual.
+    O job será processado pelo worker arq.
     """
-    jobs = scheduler_service.get_jobs()
-    return [JobResponse(**j) for j in jobs]
+    resultado = await queue_service.enqueue_verificacao_usuario(usuario.id)
+    return resultado
 
 
-@router.post("/scheduler/executar/{job_id}")
-async def executar_job_manual(
+@router.post("/queue/executar/{job_id}")
+async def enqueue_job_manual(
     job_id: str,
+    usuario: Usuario = Depends(obter_usuario_atual)
+):
+    """
+    Enfileira um job manualmente.
+
+    Jobs disponiveis:
+    - verificacao_diaria: Executa verificação para todos os usuários
+    - verificacao_semanal: Envia resumo semanal
+    - verificacao_mensal: Envia resumo mensal
+    - verificacao_usuario: Executa apenas para o usuário atual
+    """
+    jobs_map = {
+        "verificacao_diaria": queue_service.enqueue_verificacao_diaria,
+        "verificacao_semanal": queue_service.enqueue_verificacao_semanal,
+        "verificacao_mensal": queue_service.enqueue_verificacao_mensal,
+        "verificacao_usuario": lambda: queue_service.enqueue_verificacao_usuario(usuario.id),
+    }
+
+    if job_id not in jobs_map:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Job '{job_id}' não encontrado. Jobs disponíveis: {list(jobs_map.keys())}"
+        )
+
+    resultado = await jobs_map[job_id]()
+    return resultado
+
+
+@router.get("/queue/job/{job_id}")
+async def get_job_status(
+    job_id: str,
+    usuario: Usuario = Depends(obter_usuario_atual)
+):
+    """
+    Consulta status de um job específico.
+    """
+    info = await queue_service.get_job_info(job_id)
+
+    if info is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job não encontrado ou já expirou"
+        )
+
+    return info
+
+
+@router.get("/queue/status")
+async def status_queue(
+    usuario: Usuario = Depends(obter_usuario_atual)
+):
+    """
+    Retorna status da fila de jobs.
+    """
+    return await queue_service.get_queue_info()
+
+
+# ============================================================================
+# ENDPOINTS - EXECUÇÃO DIRETA (sem fila, para testes)
+# ============================================================================
+
+@router.post("/executar-agora")
+async def executar_verificacao_agora(
     usuario: Usuario = Depends(obter_usuario_atual),
     db: Session = Depends(get_db)
 ):
     """
-    Executa um job manualmente (para testes).
-    Executa apenas para o usuario atual.
-
-    Jobs disponiveis:
-    - verificacao_diaria
-    - verificacao_semanal
-    - verificacao_mensal
+    Executa verificação de alertas IMEDIATAMENTE (sem passar pela fila).
+    Útil para testes e debug.
     """
     from backend.services.whatsapp import whatsapp_service
 
-    # Executa verificação para o usuario atual
     resultado = await proactive_agent.executar_verificacao_diaria(db, usuario.id)
 
-    # Envia alertas via WhatsApp se houver
     if resultado["alertas"] and usuario.telefone:
         for alerta in resultado["alertas"]:
             await whatsapp_service.enviar_mensagem(usuario.telefone, alerta["mensagem"])
 
     return {
         "sucesso": True,
-        "job": job_id,
         "alertas_enviados": len(resultado["alertas"]),
+        "alertas": resultado["alertas"],
         "executado_em": datetime.now().isoformat()
-    }
-
-
-@router.get("/scheduler/status")
-async def status_scheduler(
-    usuario: Usuario = Depends(obter_usuario_atual)
-):
-    """
-    Retorna status do scheduler.
-    """
-    is_running = (
-        scheduler_service.scheduler is not None
-        and scheduler_service.scheduler.running
-    )
-
-    return {
-        "running": is_running,
-        "initialized": scheduler_service._initialized,
-        "jobs_count": len(scheduler_service.get_jobs()) if is_running else 0
     }

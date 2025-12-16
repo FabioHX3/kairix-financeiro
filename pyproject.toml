@@ -35,8 +35,8 @@ dependencies = [
     # Memory/Storage para LangChain
     "redis",
 
-    # Scheduler para tarefas automaticas
-    "apscheduler",
+    # Task Queue async
+    "arq",
 ]
 
 [dependency-groups]

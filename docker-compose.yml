@@ -127,6 +127,45 @@ services:
       # Serviço - porta interna do container
       - "traefik.http.services.financeiro-service.loadbalancer.server.port=8014"
 
+  # ============================================
+  # Worker ARQ (Task Queue)
+  # ============================================
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kairix_worker
+    restart: unless-stopped
+    command: [".venv/bin/arq", "backend.worker.WorkerSettings"]
+    environment:
+      # Banco de dados
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kairix}:${POSTGRES_PASSWORD:-kairix2025}@postgres:5432/${POSTGRES_DB:-kairix_financeiro}
+
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+
+      # LLM
+      LLM_OPCAO: ${LLM_OPCAO:-2}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemini-2.5-flash}
+
+      # WhatsApp API
+      WHATSAPP_API_URL: ${WHATSAPP_API_URL}
+      WHATSAPP_API_KEY: ${WHATSAPP_API_KEY}
+      WHATSAPP_INSTANCE: ${WHATSAPP_INSTANCE}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app/backend:ro
+    networks:
+      - kairix_network
+    labels:
+      - "com.docker.stack=kairixfinanceiro"
+      - "com.docker.service=kairix-worker"
+
 volumes:
   postgres_data:
   redis_data:
