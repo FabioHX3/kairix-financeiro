@@ -155,19 +155,14 @@ class SchedulerService:
 
             for usuario in usuarios:
                 try:
-                    # Executa verificacao
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-
-                    resultado = loop.run_until_complete(
+                    # Executa verificacao (usando asyncio.run que é thread-safe)
+                    resultado = asyncio.run(
                         proactive_agent.executar_verificacao_diaria(db, usuario.id)
                     )
 
-                    loop.close()
-
                     # Envia alertas via WhatsApp
                     if resultado["alertas"] and usuario.telefone:
-                        self._enviar_alertas(usuario.telefone, resultado["alertas"])
+                        self._enviar_alertas_sync(usuario.telefone, resultado["alertas"])
 
                     logger.info(
                         f"[Scheduler] Usuario {usuario.id}: "
@@ -259,18 +254,24 @@ class SchedulerService:
 
     def _enviar_alertas(self, telefone: str, alertas: list):
         """
-        Envia lista de alertas via WhatsApp.
+        Envia lista de alertas via WhatsApp (async version).
+        """
+        self._enviar_alertas_sync(telefone, alertas)
+
+    def _enviar_alertas_sync(self, telefone: str, alertas: list):
+        """
+        Envia lista de alertas via WhatsApp (sync version).
         Alertas urgentes sao enviados primeiro.
         """
         # Ordena por urgencia
         alertas_ordenados = sorted(alertas, key=lambda x: x.get("urgente", False), reverse=True)
 
         for alerta in alertas_ordenados:
-            self._enviar_mensagem(telefone, alerta["mensagem"])
+            self._enviar_mensagem_sync(telefone, alerta["mensagem"])
 
-    def _enviar_mensagem(self, telefone: str, mensagem: str):
+    def _enviar_mensagem_sync(self, telefone: str, mensagem: str):
         """
-        Envia mensagem via WhatsApp usando o callback configurado.
+        Envia mensagem via WhatsApp usando o callback configurado (sync).
         """
         if not self._send_message_callback:
             logger.warning(
@@ -280,11 +281,9 @@ class SchedulerService:
             return
 
         try:
-            import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(self._send_message_callback(telefone, mensagem))
-            loop.close()
+            # Callback já é sync (configurado em main.py)
+            self._send_message_callback(telefone, mensagem)
+            logger.info(f"[Scheduler] Alerta enviado para {telefone}")
         except Exception as e:
             logger.error(f"[Scheduler] Erro ao enviar mensagem: {e}")
 

@@ -25,6 +25,8 @@ from backend.services.agents.base_agent import (
     OrigemMensagem
 )
 from backend.services.memory_service import memory_service
+from backend.services.agents.personality_agent import personality_agent
+from backend.services.agents.learning_agent import learning_agent
 
 
 class ExtractorAgent(BaseAgent):
@@ -97,21 +99,28 @@ class ExtractorAgent(BaseAgent):
         if dados.get("multiplos_itens") and dados.get("itens"):
             return await self._pedir_confirmacao_multiplos(context, dados)
 
-        # 3. Busca padrão do usuário para categoria
-        padrao = await memory_service.buscar_padrao(
-            context.usuario_id,
-            dados.get("descricao", "")
-        )
+        # 3. Busca padrão do usuário para categoria (do banco)
+        padrao = None
+        if self.db:
+            padrao = await learning_agent.buscar_padrao(
+                db=self.db,
+                usuario_id=context.usuario_id,
+                descricao=dados.get("descricao", ""),
+                tipo=dados.get("tipo", "despesa")
+            )
 
-        if padrao:
+        if padrao and padrao.get("encontrado"):
             dados["categoria"] = padrao.get("categoria_nome", dados.get("categoria", "Outros"))
             dados["categoria_id"] = padrao.get("categoria_id")
-            dados["confianca"] = min(dados.get("confianca", 0.5) + 0.2, 1.0)
-            self.log(f"Padrão encontrado: {padrao['descricao_norm']} -> {dados['categoria']}")
+            # Usa a confiança do padrão salvo no banco
+            dados["confianca"] = padrao.get("confianca", 0.5)
+            self.log(f"Padrão encontrado: {padrao['palavras_chave']} -> {dados['categoria']} (confiança: {dados['confianca']:.0%})")
 
-        # 4. Decide se pede confirmação
-        prefs = await memory_service.obter_preferencias(context.usuario_id)
-        auto_confirmar = prefs.get("auto_confirmar_confianca", 0.90)
+        # 4. Decide se pede confirmação (pega preferências do banco)
+        auto_confirmar = 0.90  # default
+        if self.db:
+            prefs = await learning_agent.obter_preferencias(self.db, context.usuario_id)
+            auto_confirmar = prefs.get("auto_confirmar_confianca", 0.90)
 
         if dados.get("confianca", 0) >= auto_confirmar:
             # Alta confiança: registra direto
@@ -453,22 +462,34 @@ Categorias receita: {', '.join(self.CATEGORIAS_RECEITA)}"""
 
             self.log(f"Registrado: {codigo} - R$ {transacao.valor}")
 
-            # Salva padrão
-            await memory_service.salvar_padrao_usuario(
-                usuario_id=context.usuario_id,
-                descricao=dados.get("descricao", ""),
-                categoria_id=categoria_id,
-                tipo=tipo.value
-            )
+            # Salva padrão no banco
+            if categoria_id:
+                await learning_agent.registrar_padrao(
+                    db=self.db,
+                    usuario_id=context.usuario_id,
+                    descricao=dados.get("descricao", ""),
+                    categoria_id=categoria_id,
+                    tipo=tipo.value
+                )
 
-            # Monta resposta
-            tipo_emoji = "💸" if tipo == TipoTransacao.DESPESA else "💰"
-            msg = f"{tipo_emoji} Registrado!\n\n"
-            msg += f"R$ {dados['valor']:,.2f}\n"
-            msg += f"{dados.get('descricao', '')}\n"
-            msg += f"Categoria: {dados.get('categoria', 'Outros')}\n"
-            msg += f"Codigo: {codigo}\n\n"
-            msg += "Algo errado, me avisa!"
+            # Obtém personalidade do usuário
+            personalidade = "amigavel"
+            from backend.models import UserPreferences
+            prefs = self.db.query(UserPreferences).filter(
+                UserPreferences.usuario_id == context.usuario_id
+            ).first()
+            if prefs:
+                personalidade = prefs.personalidade.value
+
+            # Monta resposta com personalidade
+            msg = personality_agent.formatar_mensagem_transacao(
+                personalidade=personalidade,
+                tipo=tipo.value,
+                valor=dados["valor"],
+                descricao=dados.get("descricao", ""),
+                categoria=dados.get("categoria", "Outros"),
+                codigo=codigo
+            )
 
             # Salva no histórico
             await memory_service.salvar_contexto_conversa(
@@ -511,16 +532,24 @@ Categorias receita: {', '.join(self.CATEGORIAS_RECEITA)}"""
             }
         )
 
-        # Monta mensagem de confirmação
-        tipo_emoji = "💸" if dados.get("tipo") == "despesa" else "💰"
-        tipo_texto = "Despesa" if dados.get("tipo") == "despesa" else "Receita"
+        # Obtém personalidade do usuário
+        personalidade = "amigavel"  # default
+        if self.db:
+            from backend.models import UserPreferences
+            prefs = self.db.query(UserPreferences).filter(
+                UserPreferences.usuario_id == context.usuario_id
+            ).first()
+            if prefs:
+                personalidade = prefs.personalidade.value
 
-        msg = f"Entendi isso:\n\n"
-        msg += f"{tipo_emoji} {tipo_texto}\n"
-        msg += f"R$ {dados['valor']:,.2f}\n"
-        msg += f"{dados.get('descricao', '')}\n"
-        msg += f"Categoria: {dados.get('categoria', 'Outros')}\n\n"
-        msg += "Certo? Se nao, me corrija!"
+        # Monta mensagem de confirmação usando personality_agent
+        msg = personality_agent.formatar_pedido_confirmacao(
+            personalidade=personalidade,
+            tipo=dados.get("tipo", "despesa"),
+            valor=dados.get("valor", 0),
+            descricao=dados.get("descricao", ""),
+            categoria=dados.get("categoria", "Outros")
+        )
 
         return AgentResponse(
             sucesso=True,

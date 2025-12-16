@@ -85,7 +85,9 @@ class ProactiveAgent(BaseAgent):
 
         resultado = []
         for conta in contas:
-            dias_restantes = (conta.data_vencimento - hoje).days
+            # Converte datetime para date se necessário
+            data_venc = conta.data_vencimento.date() if hasattr(conta.data_vencimento, 'date') else conta.data_vencimento
+            dias_restantes = (data_venc - hoje).days
 
             resultado.append({
                 "id": conta.id,
@@ -93,7 +95,7 @@ class ProactiveAgent(BaseAgent):
                 "valor": float(conta.valor),
                 "data_vencimento": conta.data_vencimento.strftime("%d/%m/%Y"),
                 "dias_restantes": dias_restantes,
-                "e_recorrente": conta.e_recorrente,
+                "e_recorrente": conta.recorrencia_id is not None,
                 "urgente": dias_restantes == 0
             })
 

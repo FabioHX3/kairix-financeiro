@@ -18,12 +18,30 @@ from backend.routes import (
     alertas_router
 )
 from backend.services.scheduler_service import scheduler_service
+from backend.services.whatsapp import whatsapp_service
+import asyncio
+
+
+def enviar_mensagem_sync(telefone: str, mensagem: str):
+    """Wrapper sync para enviar mensagem via WhatsApp."""
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(whatsapp_service.enviar_mensagem(telefone, mensagem))
+        loop.close()
+        return result
+    except Exception as e:
+        print(f"[Scheduler] Erro ao enviar mensagem: {e}")
+        return None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Gerencia ciclo de vida da aplicacao."""
     # Startup
+    print("[*] Configurando callback de mensagens...")
+    scheduler_service.set_message_callback(enviar_mensagem_sync)
+
     print("[*] Iniciando scheduler de tarefas...")
     scheduler_service.start()
     print("[*] Scheduler iniciado com sucesso")

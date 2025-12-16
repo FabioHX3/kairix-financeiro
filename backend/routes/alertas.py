@@ -186,25 +186,34 @@ async def listar_jobs(
 @router.post("/scheduler/executar/{job_id}")
 async def executar_job_manual(
     job_id: str,
-    usuario: Usuario = Depends(obter_usuario_atual)
+    usuario: Usuario = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db)
 ):
     """
     Executa um job manualmente (para testes).
+    Executa apenas para o usuario atual.
 
     Jobs disponiveis:
     - verificacao_diaria
     - verificacao_semanal
     - verificacao_mensal
     """
-    resultado = scheduler_service.executar_job_manual(job_id)
+    from backend.services.whatsapp import whatsapp_service
 
-    if "erro" in resultado:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=resultado["erro"]
-        )
+    # Executa verificação para o usuario atual
+    resultado = await proactive_agent.executar_verificacao_diaria(db, usuario.id)
 
-    return resultado
+    # Envia alertas via WhatsApp se houver
+    if resultado["alertas"] and usuario.telefone:
+        for alerta in resultado["alertas"]:
+            await whatsapp_service.enviar_mensagem(usuario.telefone, alerta["mensagem"])
+
+    return {
+        "sucesso": True,
+        "job": job_id,
+        "alertas_enviados": len(resultado["alertas"]),
+        "executado_em": datetime.now().isoformat()
+    }
 
 
 @router.get("/scheduler/status")

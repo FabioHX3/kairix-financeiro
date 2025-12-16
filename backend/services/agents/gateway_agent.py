@@ -25,6 +25,8 @@ from backend.services.agents.base_agent import (
     OrigemMensagem
 )
 from backend.services.memory_service import memory_service
+from backend.services.agents.learning_agent import learning_agent
+from backend.services.agents.personality_agent import personality_agent
 
 
 class GatewayAgent(BaseAgent):
@@ -147,22 +149,40 @@ class GatewayAgent(BaseAgent):
             # Limpa ação pendente
             await memory_service.limpar_acao_pendente(context.telefone)
 
-            # Salva padrão para aprendizado
-            if resultado.get("sucesso"):
-                await memory_service.salvar_padrao_usuario(
+            # Salva padrão para aprendizado no banco
+            if resultado.get("sucesso") and self.db:
+                categoria_id = dados.get("categoria_id") or 1  # Default para categoria 1 se None
+                await learning_agent.registrar_padrao(
+                    db=self.db,
                     usuario_id=context.usuario_id,
                     descricao=dados.get("descricao", ""),
-                    categoria_id=dados.get("categoria_id", 0),
+                    categoria_id=categoria_id,
                     tipo=dados.get("tipo", "despesa")
                 )
 
+            # Obtém personalidade do usuário
+            personalidade = "amigavel"
+            if self.db:
+                from backend.models import UserPreferences
+                prefs = self.db.query(UserPreferences).filter(
+                    UserPreferences.usuario_id == context.usuario_id
+                ).first()
+                if prefs:
+                    personalidade = prefs.personalidade.value
+
+            # Formata mensagem usando personality_agent
+            msg = personality_agent.formatar_mensagem_transacao(
+                personalidade=personalidade,
+                tipo=dados.get("tipo", "despesa"),
+                valor=dados.get("valor", 0),
+                descricao=dados.get("descricao", ""),
+                categoria=dados.get("categoria", "Outros"),
+                codigo=resultado.get("codigo", "N/A")
+            )
+
             return AgentResponse(
                 sucesso=True,
-                mensagem=f"Registrado! Codigo: {resultado.get('codigo', 'N/A')}\n\n"
-                        f"{dados.get('tipo', '').upper()} de R$ {dados.get('valor', 0):.2f}\n"
-                        f"{dados.get('descricao', '')}\n"
-                        f"Categoria: {dados.get('categoria', 'Outros')}\n\n"
-                        f"Algo errado, me avisa que corrijo!",
+                mensagem=msg,
                 dados=resultado,
                 codigo_transacao=resultado.get("codigo")
             )
@@ -178,6 +198,17 @@ class GatewayAgent(BaseAgent):
                 if resultado.get("sucesso"):
                     codigos.append(resultado.get("codigo"))
                     total += item.get("valor", 0)
+
+                    # Salva padrão para cada item
+                    if self.db:
+                        categoria_id = item.get("categoria_id") or 1
+                        await learning_agent.registrar_padrao(
+                            db=self.db,
+                            usuario_id=context.usuario_id,
+                            descricao=item.get("descricao", ""),
+                            categoria_id=categoria_id,
+                            tipo=item.get("tipo", "despesa")
+                        )
 
             # Limpa ação pendente
             await memory_service.limpar_acao_pendente(context.telefone)
