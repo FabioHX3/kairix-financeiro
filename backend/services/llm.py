@@ -13,7 +13,7 @@ import re
 import base64
 from datetime import datetime, timedelta
 from typing import Dict, Tuple
-import requests
+import httpx
 
 from backend.config import settings
 
@@ -25,7 +25,7 @@ class LLMService:
         self.openrouter_api_key = settings.OPENROUTER_API_KEY
         self.openrouter_model = settings.OPENROUTER_MODEL
 
-    def _chamar_openrouter(self, prompt: str, model: str = None) -> str:
+    async def _chamar_openrouter(self, prompt: str, model: str = None) -> str:
         """Chama API do OpenRouter"""
         url = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -41,8 +41,9 @@ class LLMService:
             ]
         }
 
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        response.raise_for_status()
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=payload, timeout=30)
+            response.raise_for_status()
 
         return response.json()['choices'][0]['message']['content']
 
@@ -69,14 +70,14 @@ class LLMService:
         else:
             try:
                 return datetime.strptime(data_relativa, "%Y-%m-%d")
-            except:
+            except ValueError:
                 return datetime.now()
 
     # =========================================================================
     # EXTRAÇÃO DE TEXTO
     # =========================================================================
 
-    def extrair_transacao_de_texto(self, texto: str, categorias_disponiveis: list) -> Dict:
+    async def extrair_transacao_de_texto(self, texto: str, categorias_disponiveis: list) -> Dict:
         """Extrai informações de transação financeira de um texto usando LLM"""
 
         cats_receitas = [c for c in categorias_disponiveis if c['tipo'] == 'receita']
@@ -131,7 +132,7 @@ Exemplos:
 """
 
         try:
-            response = self._chamar_openrouter(prompt)
+            response = await self._chamar_openrouter(prompt)
             resultado = self._parsear_resposta_llm(response)
 
             resultado['data_transacao'] = self._converter_data_relativa(
@@ -208,7 +209,7 @@ Exemplos:
     # TRANSCRIÇÃO DE ÁUDIO (Gemini)
     # =========================================================================
 
-    def transcrever_audio(self, audio_url: str) -> Tuple[str, bool]:
+    async def transcrever_audio(self, audio_url: str) -> Tuple[str, bool]:
         """Transcreve áudio para texto usando Gemini via OpenRouter"""
         if not self.openrouter_api_key:
             print("[Audio] OPENROUTER_API_KEY não configurada")
@@ -216,8 +217,9 @@ Exemplos:
 
         try:
             print(f"[Audio] Baixando áudio de: {audio_url}")
-            response = requests.get(audio_url, timeout=30)
-            response.raise_for_status()
+            async with httpx.AsyncClient() as client:
+                response = await client.get(audio_url, timeout=30)
+                response.raise_for_status()
 
             audio_base64 = base64.b64encode(response.content).decode('utf-8')
 
@@ -232,13 +234,13 @@ Exemplos:
             else:
                 audio_format = 'ogg'
 
-            return self._transcrever_com_gemini(audio_base64, audio_format)
+            return await self._transcrever_com_gemini(audio_base64, audio_format)
 
         except Exception as e:
             print(f"[Audio] Erro: {e}")
             return "", False
 
-    def transcrever_audio_base64(self, base64_data: str, mimetype: str = "audio/ogg") -> Tuple[str, bool]:
+    async def transcrever_audio_base64(self, base64_data: str, mimetype: str = "audio/ogg") -> Tuple[str, bool]:
         """Transcreve áudio a partir de base64 usando Gemini via OpenRouter"""
         if not self.openrouter_api_key:
             print("[Audio] OPENROUTER_API_KEY não configurada")
@@ -256,9 +258,9 @@ Exemplos:
         else:
             audio_format = 'ogg'
 
-        return self._transcrever_com_gemini(base64_data, audio_format)
+        return await self._transcrever_com_gemini(base64_data, audio_format)
 
-    def _transcrever_com_gemini(self, audio_base64: str, audio_format: str = "ogg") -> Tuple[str, bool]:
+    async def _transcrever_com_gemini(self, audio_base64: str, audio_format: str = "ogg") -> Tuple[str, bool]:
         """Transcreve áudio usando Gemini via OpenRouter"""
         try:
             print(f"[Audio] Transcrevendo áudio ({audio_format}, {len(audio_base64)} chars)")
@@ -297,7 +299,8 @@ Se o áudio estiver inaudível ou vazio, retorne: [INAUDÍVEL]"""
 
             print(f"[Audio] Usando modelo: {self.openrouter_model}")
 
-            response = requests.post(url, headers=headers, json=payload, timeout=60)
+            async with httpx.AsyncClient() as client:
+                response = await client.post(url, headers=headers, json=payload, timeout=60)
 
             if response.status_code == 200:
                 texto = response.json()['choices'][0]['message']['content'].strip()
@@ -319,12 +322,13 @@ Se o áudio estiver inaudível ou vazio, retorne: [INAUDÍVEL]"""
     # EXTRAÇÃO DE IMAGEM (Gemini Vision)
     # =========================================================================
 
-    def extrair_de_imagem(self, image_url: str, caption: str = "") -> Dict:
+    async def extrair_de_imagem(self, image_url: str, caption: str = "") -> Dict:
         """Extrai informações de nota fiscal/recibo de uma imagem"""
         try:
             print(f"[Vision] Baixando imagem de: {image_url}")
-            response = requests.get(image_url, timeout=30)
-            response.raise_for_status()
+            async with httpx.AsyncClient() as client:
+                response = await client.get(image_url, timeout=30)
+                response.raise_for_status()
 
             image_base64 = base64.b64encode(response.content).decode('utf-8')
 
@@ -336,13 +340,13 @@ Se o áudio estiver inaudível ou vazio, retorne: [INAUDÍVEL]"""
             else:
                 mime_type = 'image/jpeg'
 
-            return self.extrair_de_imagem_base64(image_base64, mime_type, caption)
+            return await self.extrair_de_imagem_base64(image_base64, mime_type, caption)
 
         except Exception as e:
             print(f"[Vision] Erro ao processar imagem: {e}")
             return self._resultado_imagem_erro()
 
-    def extrair_de_imagem_base64(self, base64_data: str, mimetype: str = "image/jpeg", caption: str = "") -> Dict:
+    async def extrair_de_imagem_base64(self, base64_data: str, mimetype: str = "image/jpeg", caption: str = "") -> Dict:
         """Extrai informações de imagem a partir de base64"""
         try:
             print(f"[Vision] Processando imagem base64 ({len(base64_data)} chars)")
@@ -375,7 +379,8 @@ Se o áudio estiver inaudível ou vazio, retorne: [INAUDÍVEL]"""
 
             print(f"[Vision] Usando modelo: {self.openrouter_model}")
 
-            response = requests.post(url, headers=headers, json=payload, timeout=60)
+            async with httpx.AsyncClient() as client:
+                response = await client.post(url, headers=headers, json=payload, timeout=60)
 
             if response.status_code == 200:
                 content = response.json()['choices'][0]['message']['content']
@@ -386,7 +391,7 @@ Se o áudio estiver inaudível ou vazio, retorne: [INAUDÍVEL]"""
                         resultado['data_transacao'] = datetime.strptime(
                             resultado['data_documento'], "%Y-%m-%d"
                         )
-                    except:
+                    except ValueError:
                         resultado['data_transacao'] = datetime.now()
                 else:
                     resultado['data_transacao'] = datetime.now()
@@ -456,7 +461,7 @@ IMPORTANTE: Se não entendeu ou precisa de mais informações, coloque entendeu:
     # EXTRAÇÃO DE EXTRATO/FATURA
     # =========================================================================
 
-    def extrair_extrato_multiplo(self, base64_data: str, mimetype: str = "image/jpeg", caption: str = "") -> Dict:
+    async def extrair_extrato_multiplo(self, base64_data: str, mimetype: str = "image/jpeg", caption: str = "") -> Dict:
         """
         Extrai MÚLTIPLAS transações de um extrato bancário/fatura.
         Retorna lista de transações para registro em lote.
@@ -534,7 +539,8 @@ Para documento fiscal, retorne transacoes vazio e preencha valor_total e descric
                 "max_tokens": 4000  # Mais tokens para extratos longos
             }
 
-            response = requests.post(url, headers=headers, json=payload, timeout=90)
+            async with httpx.AsyncClient() as client:
+                response = await client.post(url, headers=headers, json=payload, timeout=90)
 
             if response.status_code == 200:
                 content = response.json()['choices'][0]['message']['content']
@@ -545,7 +551,7 @@ Para documento fiscal, retorne transacoes vazio e preencha valor_total e descric
                     if t.get('data'):
                         try:
                             t['data_transacao'] = datetime.strptime(t['data'], "%Y-%m-%d")
-                        except:
+                        except ValueError:
                             t['data_transacao'] = datetime.now()
                     else:
                         t['data_transacao'] = datetime.now()
@@ -560,7 +566,7 @@ Para documento fiscal, retorne transacoes vazio e preencha valor_total e descric
             print(f"[Vision Extrato] Erro: {e}")
             return {"tipo_documento": "erro", "transacoes": [], "observacoes": str(e)}
 
-    def extrair_de_pdf_base64(self, base64_data: str) -> Dict:
+    async def extrair_de_pdf_base64(self, base64_data: str) -> Dict:
         """
         Extrai transações de um PDF de extrato bancário.
         Converte PDF para imagens e processa cada página.
@@ -588,7 +594,7 @@ Para documento fiscal, retorne transacoes vazio e preencha valor_total e descric
                 img_base64 = base64.b64encode(img_bytes).decode('utf-8')
 
                 # Processa a imagem da página
-                resultado = self.extrair_extrato_multiplo(img_base64, "image/png")
+                resultado = await self.extrair_extrato_multiplo(img_base64, "image/png")
 
                 if resultado.get('transacoes'):
                     todas_transacoes.extend(resultado['transacoes'])

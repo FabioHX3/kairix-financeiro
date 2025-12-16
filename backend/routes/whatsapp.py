@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import List, Dict
 
 from backend.core.database import get_db
+from backend.core.security import obter_usuario_atual
 from backend.models import (
     Usuario, Transacao, Categoria, MembroFamilia,
     OrigemRegistro, TipoTransacao, StatusTransacao, gerar_codigo_unico
@@ -347,12 +348,12 @@ async def webhook_whatsapp(
                     base64_data = midia_result["data"]["base64Data"]
                     mimetype = midia_result["data"].get("mimetype", "audio/ogg")
                     print(f"[Webhook] Áudio descriptografado ({mimetype}, {len(base64_data)} chars)")
-                    texto, sucesso = llm_service.transcrever_audio_base64(base64_data, mimetype)
+                    texto, sucesso = await llm_service.transcrever_audio_base64(base64_data, mimetype)
 
             # Fallback: URL direta
             if not sucesso and arquivo_url:
                 print(f"[Webhook] Fallback para URL direta do áudio")
-                texto, sucesso = llm_service.transcrever_audio(arquivo_url)
+                texto, sucesso = await llm_service.transcrever_audio(arquivo_url)
 
             if sucesso and texto:
                 mensagem_original = texto
@@ -411,9 +412,10 @@ async def webhook_whatsapp(
             # Fallback: URL direta
             if not base64_data and arquivo_url:
                 try:
-                    import requests
+                    import httpx
                     import base64 as b64
-                    resp = requests.get(arquivo_url, timeout=30)
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.get(arquivo_url, timeout=30)
                     if resp.status_code == 200:
                         base64_data = b64.b64encode(resp.content).decode('utf-8')
                         mimetype = resp.headers.get('content-type', 'image/jpeg')
@@ -423,7 +425,7 @@ async def webhook_whatsapp(
 
             if base64_data:
                 # Analisa o documento
-                dados_doc = llm_service.extrair_extrato_multiplo(base64_data, mimetype, caption)
+                dados_doc = await llm_service.extrair_extrato_multiplo(base64_data, mimetype, caption)
                 tipo_doc = dados_doc.get('tipo_documento', 'outro')
                 print(f"[Webhook] Tipo documento: {tipo_doc}")
 
@@ -462,7 +464,7 @@ async def webhook_whatsapp(
 
                 # COMPROVANTE ou transação única
                 else:
-                    dados_imagem = llm_service.extrair_de_imagem_base64(base64_data, mimetype, caption)
+                    dados_imagem = await llm_service.extrair_de_imagem_base64(base64_data, mimetype, caption)
                     print(f"[Webhook] Dados extraídos: {dados_imagem}")
 
                     if dados_imagem.get("entendeu") and dados_imagem.get("valor", 0) > 0:
@@ -522,7 +524,7 @@ async def webhook_whatsapp(
                     base64_data = midia_result["data"]["base64Data"]
                     print(f"[Webhook] PDF descriptografado ({len(base64_data)} chars)")
 
-                    dados_pdf = llm_service.extrair_de_pdf_base64(base64_data)
+                    dados_pdf = await llm_service.extrair_de_pdf_base64(base64_data)
 
                     if dados_pdf.get('transacoes'):
                         transacoes_salvas = await _salvar_multiplas_transacoes(
@@ -932,21 +934,25 @@ Depois volte aqui e me conte seus gastos!"""
 # ============================================================================
 
 @router.get("/status")
-async def verificar_status():
+async def verificar_status(usuario: Usuario = Depends(obter_usuario_atual)):
     """Verifica status da conexão com WhatsApp"""
     resultado = await whatsapp_service.verificar_conexao()
     return resultado
 
 
 @router.post("/enviar")
-async def enviar_mensagem_manual(numero: str, mensagem: str):
-    """Endpoint para enviar mensagem (para testes)"""
+async def enviar_mensagem_manual(
+    numero: str,
+    mensagem: str,
+    usuario: Usuario = Depends(obter_usuario_atual)
+):
+    """Endpoint para enviar mensagem (requer autenticação)"""
     resultado = await whatsapp_service.enviar_mensagem(numero, mensagem)
     return resultado
 
 
 @router.post("/teste")
-async def teste_webhook():
+async def teste_webhook(usuario: Usuario = Depends(obter_usuario_atual)):
     """Endpoint para testar se webhook está funcionando"""
     return {
         "status": "ok",

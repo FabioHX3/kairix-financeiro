@@ -15,6 +15,8 @@ from backend.models.models import (
     RecurringTransaction,
     StatusConta,
     ScheduledBill,
+    TipoAgendamento,
+    Agendamento,
     CATEGORIAS_PADRAO,
     criar_tabelas,
     inserir_categorias_padrao,

@@ -20,6 +20,7 @@ from backend.services.agents.base_agent import (
     AgentResponse,
     IntentType
 )
+from backend.utils import fmt_valor
 
 
 class ConsultantAgent(BaseAgent):
@@ -303,10 +304,6 @@ class ConsultantAgent(BaseAgent):
         saldo = resumo["saldo_atual"]
         categorias = resumo["gastos_por_categoria"]
         comparativo = resumo["comparativo_mensal"]
-
-        # Formata valores
-        def fmt_valor(v):
-            return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
         if personalidade == "formal":
             msg = f"Resumo Financeiro - {saldo['mes']:02d}/{saldo['ano']}\n\n"

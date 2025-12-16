@@ -11,7 +11,6 @@ import json
 import redis.asyncio as redis
 from datetime import datetime, timedelta
 from typing import Optional, Any
-from dataclasses import asdict
 
 from backend.config import settings
 

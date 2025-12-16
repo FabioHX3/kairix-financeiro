@@ -6,12 +6,12 @@ from pydantic import BaseModel
 
 from backend.core.database import get_db
 from backend.core.security import obter_usuario_atual
-from backend.models import Usuario
+from backend.models import Usuario, Agendamento, TipoAgendamento
 
 router = APIRouter(prefix="/api/agendamentos", tags=["Agendamentos"])
 
 
-class AgendamentoRelatorio(BaseModel):
+class AgendamentoCreate(BaseModel):
     tipo: str  # 'diario', 'semanal', 'mensal'
     hora: str  # HH:MM
     dia_semana: Optional[int] = None
@@ -19,22 +19,23 @@ class AgendamentoRelatorio(BaseModel):
     ativo: bool = True
 
 
-class AgendamentoResposta(AgendamentoRelatorio):
+class AgendamentoResposta(BaseModel):
     id: int
     usuario_id: int
+    tipo: str
+    hora: str
+    dia_semana: Optional[int] = None
+    dia_mes: Optional[int] = None
+    ativo: bool
     criado_em: datetime
 
     class Config:
         from_attributes = True
 
 
-# TODO: Mover para banco de dados
-agendamentos_memoria = {}
-
-
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=AgendamentoResposta)
 async def criar_agendamento(
-    agendamento: AgendamentoRelatorio,
+    agendamento: AgendamentoCreate,
     usuario_atual: Usuario = Depends(obter_usuario_atual),
     db: Session = Depends(get_db)
 ):
@@ -66,62 +67,114 @@ async def criar_agendamento(
             detail="Dia do mês é obrigatório para agendamento mensal"
         )
 
-    if usuario_atual.id in agendamentos_memoria:
-        del agendamentos_memoria[usuario_atual.id]
+    # Remove agendamento existente (usuário só pode ter 1)
+    agendamento_existente = db.query(Agendamento).filter(
+        Agendamento.usuario_id == usuario_atual.id
+    ).first()
 
-    novo_agendamento = {
-        "id": usuario_atual.id,
-        "usuario_id": usuario_atual.id,
-        "tipo": agendamento.tipo,
-        "hora": agendamento.hora,
-        "dia_semana": agendamento.dia_semana,
-        "dia_mes": agendamento.dia_mes,
-        "ativo": agendamento.ativo,
-        "criado_em": datetime.utcnow()
-    }
+    if agendamento_existente:
+        db.delete(agendamento_existente)
 
-    agendamentos_memoria[usuario_atual.id] = novo_agendamento
+    # Cria novo agendamento
+    tipo_enum = TipoAgendamento(agendamento.tipo)
+    novo_agendamento = Agendamento(
+        usuario_id=usuario_atual.id,
+        tipo=tipo_enum,
+        hora=agendamento.hora,
+        dia_semana=agendamento.dia_semana,
+        dia_mes=agendamento.dia_mes,
+        ativo=agendamento.ativo
+    )
 
-    return novo_agendamento
+    db.add(novo_agendamento)
+    db.commit()
+    db.refresh(novo_agendamento)
+
+    return AgendamentoResposta(
+        id=novo_agendamento.id,
+        usuario_id=novo_agendamento.usuario_id,
+        tipo=novo_agendamento.tipo.value,
+        hora=novo_agendamento.hora,
+        dia_semana=novo_agendamento.dia_semana,
+        dia_mes=novo_agendamento.dia_mes,
+        ativo=novo_agendamento.ativo,
+        criado_em=novo_agendamento.criado_em
+    )
 
 
 @router.get("", response_model=Optional[AgendamentoResposta])
 async def obter_agendamento(
-    usuario_atual: Usuario = Depends(obter_usuario_atual)
+    usuario_atual: Usuario = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db)
 ):
     """Obtém o agendamento do usuário"""
 
-    if usuario_atual.id in agendamentos_memoria:
-        return agendamentos_memoria[usuario_atual.id]
+    agendamento = db.query(Agendamento).filter(
+        Agendamento.usuario_id == usuario_atual.id
+    ).first()
 
-    return None
+    if not agendamento:
+        return None
+
+    return AgendamentoResposta(
+        id=agendamento.id,
+        usuario_id=agendamento.usuario_id,
+        tipo=agendamento.tipo.value,
+        hora=agendamento.hora,
+        dia_semana=agendamento.dia_semana,
+        dia_mes=agendamento.dia_mes,
+        ativo=agendamento.ativo,
+        criado_em=agendamento.criado_em
+    )
 
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
 async def deletar_agendamento(
-    usuario_atual: Usuario = Depends(obter_usuario_atual)
+    usuario_atual: Usuario = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db)
 ):
     """Remove o agendamento do usuário"""
 
-    if usuario_atual.id in agendamentos_memoria:
-        del agendamentos_memoria[usuario_atual.id]
+    agendamento = db.query(Agendamento).filter(
+        Agendamento.usuario_id == usuario_atual.id
+    ).first()
+
+    if agendamento:
+        db.delete(agendamento)
+        db.commit()
 
     return None
 
 
-@router.put("/ativar")
+@router.put("/ativar", response_model=AgendamentoResposta)
 async def ativar_agendamento(
     ativo: bool,
-    usuario_atual: Usuario = Depends(obter_usuario_atual)
+    usuario_atual: Usuario = Depends(obter_usuario_atual),
+    db: Session = Depends(get_db)
 ):
     """Ativa ou desativa o agendamento"""
 
-    if usuario_atual.id not in agendamentos_memoria:
+    agendamento = db.query(Agendamento).filter(
+        Agendamento.usuario_id == usuario_atual.id
+    ).first()
+
+    if not agendamento:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Nenhum agendamento encontrado"
         )
 
-    agendamentos_memoria[usuario_atual.id]["ativo"] = ativo
+    agendamento.ativo = ativo
+    db.commit()
+    db.refresh(agendamento)
 
-    return agendamentos_memoria[usuario_atual.id]
+    return AgendamentoResposta(
+        id=agendamento.id,
+        usuario_id=agendamento.usuario_id,
+        tipo=agendamento.tipo.value,
+        hora=agendamento.hora,
+        dia_semana=agendamento.dia_semana,
+        dia_mes=agendamento.dia_mes,
+        ativo=agendamento.ativo,
+        criado_em=agendamento.criado_em
+    )

@@ -84,6 +84,7 @@ class Usuario(Base):
     preferencias = relationship("UserPreferences", back_populates="usuario", uselist=False)
     recorrencias = relationship("RecurringTransaction", back_populates="usuario")
     contas_agendadas = relationship("ScheduledBill", back_populates="usuario")
+    agendamentos = relationship("Agendamento", back_populates="usuario", uselist=False)
 
 
 class MembroFamilia(Base):
@@ -260,6 +261,13 @@ class RecurringTransaction(Base):
     categoria = relationship("Categoria")
 
 
+class TipoAgendamento(str, enum.Enum):
+    """Tipo de agendamento de relatório"""
+    DIARIO = "diario"
+    SEMANAL = "semanal"
+    MENSAL = "mensal"
+
+
 class StatusConta(str, enum.Enum):
     """Status de conta agendada"""
     PENDENTE = "pendente"
@@ -307,6 +315,31 @@ class ScheduledBill(Base):
     usuario = relationship("Usuario", back_populates="contas_agendadas")
     categoria = relationship("Categoria")
     recorrencia = relationship("RecurringTransaction")
+
+
+class Agendamento(Base):
+    """
+    Agendamentos de relatórios personalizados.
+    Usuário pode escolher quando receber relatórios via WhatsApp.
+    """
+    __tablename__ = "agendamentos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, unique=True)
+
+    # Configuração do agendamento
+    tipo = Column(Enum(TipoAgendamento), nullable=False)
+    hora = Column(String(5), nullable=False)  # HH:MM
+    dia_semana = Column(Integer, nullable=True)  # 0-6 (0=segunda) para semanal
+    dia_mes = Column(Integer, nullable=True)  # 1-31 para mensal
+    ativo = Column(Boolean, default=True)
+
+    # Metadados
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    usuario = relationship("Usuario", back_populates="agendamentos")
 
 
 class Transacao(Base):

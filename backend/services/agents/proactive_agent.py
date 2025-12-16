@@ -19,6 +19,7 @@ from backend.services.agents.base_agent import (
     AgentResponse,
     IntentType
 )
+from backend.utils import fmt_valor
 
 
 class ProactiveAgent(BaseAgent):
@@ -154,9 +155,6 @@ class ProactiveAgent(BaseAgent):
         """
         if not contas_vencer and not contas_atrasadas:
             return None
-
-        def fmt_valor(v):
-            return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
         msg_parts = []
 
@@ -320,9 +318,6 @@ class ProactiveAgent(BaseAgent):
         """
         if not anomalias:
             return None
-
-        def fmt_valor(v):
-            return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
         if personalidade == "formal":
             msg = "Alerta de gastos acima da média:\n\n"
@@ -503,9 +498,6 @@ class ProactiveAgent(BaseAgent):
         """
         Formata resumo para envio via WhatsApp.
         """
-        def fmt_valor(v):
-            return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
         if tipo == "diario":
             if personalidade == "formal":
                 msg = f"Resumo do dia {resumo['data']}:\n\n"
