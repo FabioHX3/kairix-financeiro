@@ -76,7 +76,7 @@ class ExtractorAgent(BaseAgent):
         self.log(f"Extraindo de: {context.mensagem_original[:50]}...")
 
         # 1. Tenta extração rápida
-        dados_rapidos = self._extracao_rapida(context.mensagem_original)
+        dados_rapidos = self._extracao_rapida(context.mensagem_original, context.timezone)
 
         if dados_rapidos and dados_rapidos.get("valor"):
             self.log(f"Extração rápida: {dados_rapidos}")
@@ -92,6 +92,10 @@ class ExtractorAgent(BaseAgent):
                         "Exemplo: \"Gastei 50 no mercado\"",
                 requer_confirmacao=False
             )
+
+        # 2.5. Trata múltiplos itens
+        if dados.get("multiplos_itens") and dados.get("itens"):
+            return await self._pedir_confirmacao_multiplos(context, dados)
 
         # 3. Busca padrão do usuário para categoria
         padrao = await memory_service.buscar_padrao(
@@ -116,27 +120,48 @@ class ExtractorAgent(BaseAgent):
             # Pede confirmação
             return await self._pedir_confirmacao(context, dados)
 
-    def _extracao_rapida(self, texto: str) -> Optional[Dict]:
+    def _extracao_rapida(self, texto: str, timezone: str = "America/Sao_Paulo") -> Optional[Dict]:
         """
         Extração rápida usando regex.
         Cobre os casos mais comuns sem precisar de LLM.
+        Retorna None se detectar múltiplas transações (vai para LLM).
         """
         texto_lower = texto.lower()
+
+        # Detecta se tem múltiplas transações (receita E despesa)
+        tem_despesa = any(p in texto_lower for p in ["gast", "pagu", "compre", "despesa"])
+        tem_receita = any(p in texto_lower for p in ["receb", "entr", "ganhe", "receita", "salario", "salário"])
+
+        # Se tem ambos tipos, vai para LLM (múltiplas transações)
+        if tem_despesa and tem_receita:
+            self.log("Múltiplas transações detectadas, usando LLM")
+            return None
+
+        # Conta quantos valores numéricos existem (pode indicar múltiplos itens)
+        valores_encontrados = re.findall(r'\b\d+[.,]?\d*\b', texto_lower)
+        valores_significativos = [v for v in valores_encontrados if float(v.replace(',', '.')) >= 5]
+        if len(valores_significativos) > 2:
+            self.log(f"Múltiplos valores detectados ({len(valores_significativos)}), usando LLM")
+            return None
+
+        from zoneinfo import ZoneInfo
+        agora = datetime.now(ZoneInfo(timezone))
+
         resultado = {
             "tipo": None,
             "valor": None,
             "descricao": None,
             "categoria": "Outros",
-            "data": datetime.now().strftime("%Y-%m-%d"),
+            "data": agora.strftime("%Y-%m-%d"),
             "confianca": 0.0
         }
 
-        # Detecta tipo
-        if any(p in texto_lower for p in ["gast", "pagu", "compre", "despesa"]):
-            resultado["tipo"] = "despesa"
-            resultado["confianca"] = 0.7
-        elif any(p in texto_lower for p in ["receb", "entr", "ganhe", "receita", "salario"]):
+        # Detecta tipo (prioridade para receita se tiver "recebi/salário")
+        if tem_receita:
             resultado["tipo"] = "receita"
+            resultado["confianca"] = 0.7
+        elif tem_despesa:
+            resultado["tipo"] = "despesa"
             resultado["confianca"] = 0.7
 
         # Extrai valor
@@ -179,73 +204,167 @@ class ExtractorAgent(BaseAgent):
             palavras_sig = [p for p in palavras if len(p) > 3 and not p.isdigit()]
             resultado["descricao"] = ' '.join(palavras_sig[:3]).title() if palavras_sig else "Transacao"
 
+        # Limpa e melhora a descrição
+        resultado["descricao"] = self._limpar_descricao(resultado["descricao"], texto)
+
         # Detecta categoria básica
         resultado["categoria"] = self._inferir_categoria(texto_lower, resultado["tipo"])
 
-        # Detecta data
+        # Detecta data (usa agora com timezone)
         if "ontem" in texto_lower:
-            resultado["data"] = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+            resultado["data"] = (agora - timedelta(days=1)).strftime("%Y-%m-%d")
         elif "anteontem" in texto_lower:
-            resultado["data"] = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+            resultado["data"] = (agora - timedelta(days=2)).strftime("%Y-%m-%d")
 
         return resultado if resultado["valor"] else None
 
+    def _limpar_descricao(self, descricao: str, texto_original: str) -> str:
+        """
+        Limpa e melhora a descrição extraída.
+        - Remove verbos financeiros (gastei, paguei, recebi)
+        - Remove valores numéricos e "reais"
+        - Remove palavras temporais (agora, hoje, ontem)
+        - Remove artigos e preposições
+        """
+        if not descricao:
+            return "Transação"
+
+        desc = descricao.strip()
+
+        # Palavras a remover (verbos, valores, temporais, artigos)
+        palavras_remover = {
+            # Verbos financeiros
+            "gastei", "gasta", "gastou", "gastamos", "gastar",
+            "paguei", "paga", "pagou", "pagamos", "pagar",
+            "recebi", "recebeu", "recebemos", "receber",
+            "comprei", "comprou", "compramos", "comprar",
+            "ganhei", "ganhou", "ganhamos", "ganhar",
+            # Valores
+            "reais", "real", "r$", "conto", "contos",
+            # Temporais
+            "agora", "hoje", "ontem", "anteontem", "amanha", "amanhã",
+            "já", "ja", "mesmo", "aqui", "ali", "la", "lá",
+            "acabei", "acabou",
+            # Artigos e preposições
+            "de", "da", "do", "no", "na", "em", "a", "o", "um", "uma",
+            "com", "para", "pro", "pra",
+        }
+
+        # Remove números (valores)
+        desc = re.sub(r'\b\d+[.,]?\d*\b', '', desc)
+
+        # Remove palavras indesejadas
+        palavras = desc.split()
+        palavras = [p for p in palavras if p.lower() not in palavras_remover]
+        desc = " ".join(palavras).strip()
+
+        # Remove artigos/preposições soltos no final
+        sufixos_remover = [" de", " da", " do", " no", " na", " em", " a", " o"]
+        for sufixo in sufixos_remover:
+            if desc.lower().endswith(sufixo):
+                desc = desc[:-len(sufixo)].strip()
+
+        # Melhora nomenclatura de contas comuns
+        # Usa regex para palavras inteiras (evita "gas" em "gastei")
+        texto_lower = texto_original.lower()
+        palavras_texto = set(re.findall(r'\b\w+\b', texto_lower))
+
+        mapeamento_contas = {
+            "luz": ("Conta de Luz", ["luz", "energia", "eletrica", "cpfl", "cemig", "enel"]),
+            "agua": ("Conta de Água", ["agua", "água", "saneamento", "sabesp", "copasa"]),
+            "gas": ("Conta de Gás", ["gás", "comgas"]),  # Removido "gas" sozinho para evitar conflito
+            "internet": ("Internet", ["internet", "wifi", "banda"]),
+            "telefone": ("Telefone", ["telefone", "celular"]),
+            "aluguel": ("Aluguel", ["aluguel", "locacao"]),
+            "condominio": ("Condomínio", ["condominio", "condomínio", "condo"]),
+            "iptu": ("IPTU", ["iptu"]),
+            "ipva": ("IPVA", ["ipva"]),
+        }
+
+        for chave, (nome_bonito, palavras_chave) in mapeamento_contas.items():
+            # Verifica se alguma palavra-chave está como palavra inteira
+            if any(p in palavras_texto for p in palavras_chave):
+                return nome_bonito
+
+        # Se descrição ficou vazia, extrai do texto original
+        if not desc or len(desc) < 2:
+            palavras = texto_original.split()
+            palavras_sig = [p for p in palavras if len(p) > 3 and not p.isdigit()
+                           and p.lower() not in ["gastei", "paguei", "recebi", "ganhei", "reais"]]
+            desc = " ".join(palavras_sig[:3]).title() if palavras_sig else "Transação"
+
+        return desc.title() if desc else "Transação"
+
     def _inferir_categoria(self, texto: str, tipo: str) -> str:
-        """Infere categoria baseado em palavras-chave"""
+        """Infere categoria baseado em palavras-chave (palavras inteiras)"""
+        # Extrai palavras inteiras para evitar falsos positivos
+        palavras = set(re.findall(r'\b\w+\b', texto.lower()))
+
         if tipo == "receita":
-            if any(p in texto for p in ["salario", "salário", "contracheque"]):
+            if palavras & {"salario", "salário", "contracheque"}:
                 return "Salario"
-            if any(p in texto for p in ["freelance", "freela", "job", "projeto"]):
+            if palavras & {"freelance", "freela", "job", "projeto"}:
                 return "Freelance"
-            if any(p in texto for p in ["dividendo", "rendimento", "investimento"]):
+            if palavras & {"dividendo", "rendimento", "investimento"}:
                 return "Investimentos"
-            if any(p in texto for p in ["vend", "vendeu", "venda"]):
+            if palavras & {"venda", "vendas", "vendeu", "vendi"}:
                 return "Vendas"
             return "Outros"
         else:
             # Despesa
-            if any(p in texto for p in ["almoc", "jant", "cafe", "restaurante", "mercado", "comida", "lanche", "pizza"]):
+            if palavras & {"almoco", "almoço", "jantar", "janta", "cafe", "café", "restaurante", "mercado", "comida", "lanche", "pizza"}:
                 return "Alimentacao"
-            if any(p in texto for p in ["uber", "99", "taxi", "gasolina", "combustivel", "onibus", "metro"]):
+            if palavras & {"uber", "99", "taxi", "gasolina", "combustivel", "onibus", "metro", "passagem"}:
                 return "Transporte"
-            if any(p in texto for p in ["medic", "farmacia", "hospital", "consulta", "exame"]):
+            if palavras & {"medico", "médico", "farmacia", "farmácia", "hospital", "consulta", "exame", "remedio", "remédio"}:
                 return "Saude"
-            if any(p in texto for p in ["curso", "livro", "escola", "faculdade", "mensalidade"]):
+            if palavras & {"curso", "livro", "escola", "faculdade", "mensalidade"}:
                 return "Educacao"
-            if any(p in texto for p in ["cinema", "netflix", "spotify", "jogo", "bar", "festa"]):
+            if palavras & {"cinema", "netflix", "spotify", "jogo", "bar", "festa", "show"}:
                 return "Lazer"
-            if any(p in texto for p in ["aluguel", "condominio", "luz", "agua", "internet", "gas"]):
+            if palavras & {"aluguel", "condominio", "condomínio", "luz", "agua", "água", "internet", "gás"}:
                 return "Casa"
-            if any(p in texto for p in ["roupa", "sapato", "tenis", "camisa", "calcado"]):
+            if palavras & {"roupa", "sapato", "tenis", "tênis", "camisa", "calcado", "calçado"}:
                 return "Vestuario"
             return "Outros"
 
     async def _extracao_llm(self, context: AgentContext) -> Dict:
         """Extrai dados usando LLM"""
+        from zoneinfo import ZoneInfo
+        hoje = datetime.now(ZoneInfo(context.timezone))
+        ontem = hoje - timedelta(days=1)
+
         prompt = f"""Extraia os dados financeiros da mensagem do usuario.
 
-IMPORTANTE:
-- Se for gasto/despesa/pagamento, tipo = "despesa"
-- Se for recebimento/entrada/ganho, tipo = "receita"
-- Se nao conseguir determinar o tipo, pergunte
+REGRAS:
+- gasto/despesa/pagamento = tipo "despesa"
+- recebimento/entrada/ganho/salario = tipo "receita"
 - Valor deve ser numero positivo
-- Data: se nao mencionada, use HOJE. Se "ontem", calcule.
-- Confianca: 0.0 a 1.0 (quanto tem certeza dos dados)
+- "hoje" = {hoje.strftime("%Y-%m-%d")}, "ontem" = {ontem.strftime("%Y-%m-%d")}
+
+IMPORTANTE - MULTIPLAS TRANSACOES:
+Se a mensagem tiver MAIS DE UMA transacao (ex: "recebi salario e gastei no mercado"),
+retorne multiplos_itens=true e liste cada uma em "itens".
 
 Mensagem: "{context.mensagem_original}"
-Data de hoje: {datetime.now().strftime("%Y-%m-%d")}
 
 Responda APENAS com JSON:
 {{
   "tipo": "despesa" ou "receita",
   "valor": numero,
-  "descricao": "descricao curta",
-  "categoria": "categoria sugerida",
+  "descricao": "descricao curta (2-4 palavras)",
+  "categoria": "categoria",
   "data": "YYYY-MM-DD",
   "confianca": 0.0 a 1.0,
-  "multiplos_itens": false,
-  "itens": []
+  "multiplos_itens": true/false,
+  "itens": [
+    {{"tipo": "receita", "valor": 5000, "descricao": "Salario", "categoria": "Salario", "data": "YYYY-MM-DD"}},
+    {{"tipo": "despesa", "valor": 30, "descricao": "Uber", "categoria": "Transporte", "data": "YYYY-MM-DD"}}
+  ]
 }}
+
+Se multiplos_itens=false, "itens" deve ser [].
+Se multiplos_itens=true, preencha "itens" e deixe tipo/valor/descricao do primeiro item nos campos principais.
 
 Categorias despesa: {', '.join(self.CATEGORIAS_DESPESA)}
 Categorias receita: {', '.join(self.CATEGORIAS_RECEITA)}"""
@@ -269,6 +388,14 @@ Categorias receita: {', '.join(self.CATEGORIAS_RECEITA)}"""
                 content = json_match.group()
 
             dados = json.loads(content)
+
+            # Aplica limpeza de descrição também na extração LLM
+            if dados.get("descricao"):
+                dados["descricao"] = self._limpar_descricao(
+                    dados["descricao"],
+                    context.mensagem_original
+                )
+
             self.log(f"Extracao LLM: {dados}")
 
             return dados
@@ -341,7 +468,7 @@ Categorias receita: {', '.join(self.CATEGORIAS_RECEITA)}"""
             msg += f"{dados.get('descricao', '')}\n"
             msg += f"Categoria: {dados.get('categoria', 'Outros')}\n"
             msg += f"Codigo: {codigo}\n\n"
-            msg += "Algo errado? Me avisa!"
+            msg += "Algo errado, me avisa!"
 
             # Salva no histórico
             await memory_service.salvar_contexto_conversa(
@@ -393,7 +520,7 @@ Categorias receita: {', '.join(self.CATEGORIAS_RECEITA)}"""
         msg += f"R$ {dados['valor']:,.2f}\n"
         msg += f"{dados.get('descricao', '')}\n"
         msg += f"Categoria: {dados.get('categoria', 'Outros')}\n\n"
-        msg += "Confirma? (sim/nao)"
+        msg += "Certo? Se nao, me corrija!"
 
         return AgentResponse(
             sucesso=True,
@@ -402,6 +529,47 @@ Categorias receita: {', '.join(self.CATEGORIAS_RECEITA)}"""
             acao_pendente={
                 "tipo": "registrar_transacao",
                 "dados": dados
+            },
+            confianca=dados.get("confianca", 0)
+        )
+
+    async def _pedir_confirmacao_multiplos(self, context: AgentContext, dados: Dict) -> AgentResponse:
+        """Pede confirmação para múltiplas transações"""
+        itens = dados.get("itens", [])
+
+        if not itens:
+            # Fallback para confirmação simples
+            return await self._pedir_confirmacao(context, dados)
+
+        # Salva ação pendente com todos os itens
+        await memory_service.salvar_acao_pendente(
+            context.telefone,
+            "registrar_multiplas",
+            {"itens": itens}
+        )
+
+        # Monta mensagem listando todos os itens
+        msg = f"Encontrei {len(itens)} transacoes:\n\n"
+
+        for i, item in enumerate(itens, 1):
+            tipo_emoji = "💸" if item.get("tipo") == "despesa" else "💰"
+            tipo_texto = "Despesa" if item.get("tipo") == "despesa" else "Receita"
+            valor = item.get("valor", 0)
+            desc = item.get("descricao", "")
+            cat = item.get("categoria", "Outros")
+
+            msg += f"{i}. {tipo_emoji} {tipo_texto}: R$ {valor:,.2f}\n"
+            msg += f"   {desc} ({cat})\n\n"
+
+        msg += "Certo? Diga *sim* para registrar todas!"
+
+        return AgentResponse(
+            sucesso=True,
+            mensagem=msg,
+            requer_confirmacao=True,
+            acao_pendente={
+                "tipo": "registrar_multiplas",
+                "dados": {"itens": itens}
             },
             confianca=dados.get("confianca", 0)
         )

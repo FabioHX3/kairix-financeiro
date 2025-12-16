@@ -54,12 +54,23 @@ async def processar_mensagem_v2(
 
     origem_enum = origem_map.get(origem, OrigemMensagem.WHATSAPP_TEXTO)
 
+    # Busca timezone do usuário (default: Brasília)
+    user_timezone = "America/Sao_Paulo"
+    if db:
+        from backend.models.models import UserPreferences
+        prefs = db.query(UserPreferences).filter(
+            UserPreferences.usuario_id == usuario_id
+        ).first()
+        if prefs and prefs.timezone:
+            user_timezone = prefs.timezone
+
     # Cria contexto
     context = AgentContext(
         usuario_id=usuario_id,
         telefone=telefone,
         mensagem_original=mensagem,
         origem=origem_enum,
+        timezone=user_timezone,
         media_url=media_url,
         media_type=media_type,
         historico_conversa=contexto_extra.get("historico", []) if contexto_extra else []

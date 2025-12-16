@@ -44,6 +44,9 @@ class AgentContext:
     origem: OrigemMensagem
     timestamp: datetime = field(default_factory=datetime.utcnow)
 
+    # Localização do usuário
+    timezone: str = "America/Sao_Paulo"  # Default, será preenchido do perfil
+
     # Dados extraídos/processados
     intent: Optional[IntentType] = None
     dados_extraidos: dict = field(default_factory=dict)

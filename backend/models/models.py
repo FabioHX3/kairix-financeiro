@@ -180,6 +180,9 @@ class UserPreferences(Base):
     resumo_mensal = Column(Boolean, default=True)
     horario_resumo = Column(String(5), default="09:00")  # HH:MM
 
+    # Localização
+    timezone = Column(String(50), default="America/Sao_Paulo")  # Ex: America/Cuiaba, America/New_York, Europe/London
+
     # Auto-confirmação
     auto_confirmar_confianca = Column(Float, default=0.90)  # Auto-confirma se confiança >= 90%
 

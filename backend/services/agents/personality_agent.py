@@ -180,7 +180,7 @@ class PersonalityAgent(BaseAgent):
                 f"📝 {descricao}\n"
                 f"{emoji_cat} {categoria}\n"
                 f"🔖 Codigo: {codigo}\n\n"
-                f"Algo errado? Me conta que a gente resolve! 😉"
+                f"Algo errado, me conta que a gente resolve!"
             )
 
         else:  # amigavel (default)
@@ -191,7 +191,7 @@ class PersonalityAgent(BaseAgent):
                 f"{descricao}\n"
                 f"{emoji_cat} {categoria}\n"
                 f"Codigo: {codigo}\n\n"
-                f"Algo errado? Me avisa!"
+                f"Algo errado, me avisa!"
             )
 
     def formatar_pedido_confirmacao(
@@ -238,7 +238,7 @@ class PersonalityAgent(BaseAgent):
                 f"{valor_fmt}\n"
                 f"{descricao}\n"
                 f"{emoji_cat} {categoria}\n\n"
-                f"Confirma? (sim/nao)"
+                f"Certo? Se nao, me corrija!"
             )
 
     def formatar_saudacao_inicial(self, personalidade: str, nome: str = None) -> str:

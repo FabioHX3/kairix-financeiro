@@ -1,25 +1,80 @@
-import os
+"""
+LLM Service - Processamento com OpenRouter (Gemini)
+
+Funções:
+- Extração de transações de texto
+- Transcrição de áudio (Gemini)
+- Extração de dados de imagens (Gemini Vision)
+- Extração de extratos/faturas
+"""
+
 import json
 import re
 import base64
-import tempfile
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Tuple
+from typing import Dict, Tuple
 import requests
 
 from backend.config import settings
 
 
 class LLMService:
-    """Serviço para processar mensagens com LLM, transcrição de áudio e OCR"""
+    """Serviço para processar mensagens com LLM via OpenRouter"""
 
     def __init__(self):
-        self.llm_opcao = settings.LLM_OPCAO
-        self.ollama_url = settings.OLLAMA_URL
-        self.ollama_model = settings.OLLAMA_MODEL
         self.openrouter_api_key = settings.OPENROUTER_API_KEY
         self.openrouter_model = settings.OPENROUTER_MODEL
-        self.openai_api_key = settings.OPENAI_API_KEY
+
+    def _chamar_openrouter(self, prompt: str, model: str = None) -> str:
+        """Chama API do OpenRouter"""
+        url = "https://openrouter.ai/api/v1/chat/completions"
+
+        headers = {
+            "Authorization": f"Bearer {self.openrouter_api_key}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": model or self.openrouter_model,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ]
+        }
+
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()
+
+        return response.json()['choices'][0]['message']['content']
+
+    def _parsear_resposta_llm(self, response: str) -> Dict:
+        """Parseia a resposta do LLM removendo markdown se necessário"""
+        response = re.sub(r'```json\s*', '', response)
+        response = re.sub(r'```\s*', '', response)
+        response = response.strip()
+
+        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        if json_match:
+            response = json_match.group()
+
+        return json.loads(response)
+
+    def _converter_data_relativa(self, data_relativa: str) -> datetime:
+        """Converte data relativa em datetime"""
+        if not data_relativa or data_relativa == "hoje":
+            return datetime.now()
+        elif data_relativa == "ontem":
+            return datetime.now() - timedelta(days=1)
+        elif data_relativa == "anteontem":
+            return datetime.now() - timedelta(days=2)
+        else:
+            try:
+                return datetime.strptime(data_relativa, "%Y-%m-%d")
+            except:
+                return datetime.now()
+
+    # =========================================================================
+    # EXTRAÇÃO DE TEXTO
+    # =========================================================================
 
     def extrair_transacao_de_texto(self, texto: str, categorias_disponiveis: list) -> Dict:
         """Extrai informações de transação financeira de um texto usando LLM"""
@@ -76,11 +131,7 @@ Exemplos:
 """
 
         try:
-            if self.llm_opcao == 1:
-                response = self._chamar_ollama(prompt)
-            else:
-                response = self._chamar_openrouter(prompt)
-
+            response = self._chamar_openrouter(prompt)
             resultado = self._parsear_resposta_llm(response)
 
             resultado['data_transacao'] = self._converter_data_relativa(
@@ -97,69 +148,6 @@ Exemplos:
         except Exception as e:
             print(f"Erro ao processar com LLM: {e}")
             return self._extracao_basica(texto, categorias_disponiveis)
-
-    def _chamar_ollama(self, prompt: str) -> str:
-        """Chama API do Ollama"""
-        url = f"{self.ollama_url}/api/generate"
-
-        payload = {
-            "model": self.ollama_model,
-            "prompt": prompt,
-            "stream": False,
-            "format": "json"
-        }
-
-        response = requests.post(url, json=payload, timeout=30)
-        response.raise_for_status()
-
-        return response.json()['response']
-
-    def _chamar_openrouter(self, prompt: str, model: str = None) -> str:
-        """Chama API do OpenRouter"""
-        url = "https://openrouter.ai/api/v1/chat/completions"
-
-        headers = {
-            "Authorization": f"Bearer {self.openrouter_api_key}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "model": model or self.openrouter_model,
-            "messages": [
-                {"role": "user", "content": prompt}
-            ]
-        }
-
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        response.raise_for_status()
-
-        return response.json()['choices'][0]['message']['content']
-
-    def _parsear_resposta_llm(self, response: str) -> Dict:
-        """Parseia a resposta do LLM removendo markdown se necessário"""
-        response = re.sub(r'```json\s*', '', response)
-        response = re.sub(r'```\s*', '', response)
-        response = response.strip()
-
-        json_match = re.search(r'\{.*\}', response, re.DOTALL)
-        if json_match:
-            response = json_match.group()
-
-        return json.loads(response)
-
-    def _converter_data_relativa(self, data_relativa: str) -> datetime:
-        """Converte data relativa em datetime"""
-        if not data_relativa or data_relativa == "hoje":
-            return datetime.now()
-        elif data_relativa == "ontem":
-            return datetime.now() - timedelta(days=1)
-        elif data_relativa == "anteontem":
-            return datetime.now() - timedelta(days=2)
-        else:
-            try:
-                return datetime.strptime(data_relativa, "%Y-%m-%d")
-            except:
-                return datetime.now()
 
     def _extracao_basica(self, texto: str, categorias_disponiveis: list) -> Dict:
         """Extração básica sem LLM como fallback"""
@@ -216,42 +204,44 @@ Exemplos:
             "pergunta": pergunta
         }
 
+    # =========================================================================
+    # TRANSCRIÇÃO DE ÁUDIO (Gemini)
+    # =========================================================================
+
     def transcrever_audio(self, audio_url: str) -> Tuple[str, bool]:
-        """Transcreve áudio para texto usando Gemini via OpenRouter (fallback: Whisper)"""
-        # Tenta primeiro com Gemini via OpenRouter
-        if self.openrouter_api_key:
-            try:
-                print(f"[Gemini Audio] Baixando áudio de: {audio_url}")
-                response = requests.get(audio_url, timeout=30)
-                response.raise_for_status()
+        """Transcreve áudio para texto usando Gemini via OpenRouter"""
+        if not self.openrouter_api_key:
+            print("[Audio] OPENROUTER_API_KEY não configurada")
+            return "", False
 
-                audio_base64 = base64.b64encode(response.content).decode('utf-8')
+        try:
+            print(f"[Audio] Baixando áudio de: {audio_url}")
+            response = requests.get(audio_url, timeout=30)
+            response.raise_for_status()
 
-                # Detecta formato do áudio
-                content_type = response.headers.get('content-type', 'audio/ogg')
-                if 'mp3' in content_type or 'mpeg' in content_type:
-                    audio_format = 'mp3'
-                elif 'wav' in content_type:
-                    audio_format = 'wav'
-                elif 'mp4' in content_type or 'm4a' in content_type:
-                    audio_format = 'mp4'
-                else:
-                    audio_format = 'ogg'
+            audio_base64 = base64.b64encode(response.content).decode('utf-8')
 
-                texto, sucesso = self._transcrever_com_gemini(audio_base64, audio_format)
-                if sucesso:
-                    return texto, True
+            # Detecta formato do áudio
+            content_type = response.headers.get('content-type', 'audio/ogg')
+            if 'mp3' in content_type or 'mpeg' in content_type:
+                audio_format = 'mp3'
+            elif 'wav' in content_type:
+                audio_format = 'wav'
+            elif 'mp4' in content_type or 'm4a' in content_type:
+                audio_format = 'mp4'
+            else:
+                audio_format = 'ogg'
 
-            except Exception as e:
-                print(f"[Gemini Audio] Erro: {e}, tentando Whisper...")
+            return self._transcrever_com_gemini(audio_base64, audio_format)
 
-        # Fallback para Whisper se Gemini falhar
-        return self._transcrever_com_whisper(audio_url)
+        except Exception as e:
+            print(f"[Audio] Erro: {e}")
+            return "", False
 
     def transcrever_audio_base64(self, base64_data: str, mimetype: str = "audio/ogg") -> Tuple[str, bool]:
         """Transcreve áudio a partir de base64 usando Gemini via OpenRouter"""
         if not self.openrouter_api_key:
-            print("[Gemini Audio] OPENROUTER_API_KEY não configurada")
+            print("[Audio] OPENROUTER_API_KEY não configurada")
             return "", False
 
         # Extrai formato do mimetype
@@ -271,7 +261,7 @@ Exemplos:
     def _transcrever_com_gemini(self, audio_base64: str, audio_format: str = "ogg") -> Tuple[str, bool]:
         """Transcreve áudio usando Gemini via OpenRouter"""
         try:
-            print(f"[Gemini Audio] Transcrevendo áudio ({audio_format}, {len(audio_base64)} chars)")
+            print(f"[Audio] Transcrevendo áudio ({audio_format}, {len(audio_base64)} chars)")
 
             url = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -280,7 +270,6 @@ Exemplos:
                 "Content-Type": "application/json"
             }
 
-            # Gemini aceita áudio como input_audio ou como URL inline
             payload = {
                 "model": self.openrouter_model,
                 "messages": [
@@ -306,77 +295,32 @@ Se o áudio estiver inaudível ou vazio, retorne: [INAUDÍVEL]"""
                 "max_tokens": 500
             }
 
-            print(f"[Gemini Audio] Usando modelo: {self.openrouter_model}")
+            print(f"[Audio] Usando modelo: {self.openrouter_model}")
 
             response = requests.post(url, headers=headers, json=payload, timeout=60)
 
             if response.status_code == 200:
                 texto = response.json()['choices'][0]['message']['content'].strip()
-                print(f"[Gemini Audio] Transcrição: {texto[:100]}...")
+                print(f"[Audio] Transcrição: {texto[:100]}...")
                 if texto and texto != "[INAUDÍVEL]":
                     return texto, True
                 else:
-                    print("[Gemini Audio] Áudio inaudível")
+                    print("[Audio] Áudio inaudível")
                     return "", False
             else:
-                print(f"[Gemini Audio] Erro: {response.status_code} - {response.text[:200]}")
+                print(f"[Audio] Erro: {response.status_code} - {response.text[:200]}")
                 return "", False
 
         except Exception as e:
-            print(f"[Gemini Audio] Erro ao transcrever: {e}")
+            print(f"[Audio] Erro ao transcrever: {e}")
             return "", False
 
-    def _transcrever_com_whisper(self, audio_url: str) -> Tuple[str, bool]:
-        """Transcreve áudio usando OpenAI Whisper API (fallback)"""
-        if not self.openai_api_key:
-            print("[Whisper] OPENAI_API_KEY não configurada")
-            return "", False
-
-        try:
-            print(f"[Whisper] Baixando áudio de: {audio_url}")
-            response = requests.get(audio_url, timeout=30)
-            response.raise_for_status()
-
-            with tempfile.NamedTemporaryFile(suffix='.ogg', delete=False) as tmp_file:
-                tmp_file.write(response.content)
-                tmp_path = tmp_file.name
-
-            try:
-                url = "https://api.openai.com/v1/audio/transcriptions"
-
-                headers = {
-                    "Authorization": f"Bearer {self.openai_api_key}"
-                }
-
-                with open(tmp_path, 'rb') as audio_file:
-                    files = {
-                        'file': ('audio.ogg', audio_file, 'audio/ogg'),
-                    }
-                    data = {
-                        'model': 'whisper-1',
-                        'language': 'pt'
-                    }
-
-                    response = requests.post(url, headers=headers, files=files, data=data, timeout=60)
-
-                if response.status_code == 200:
-                    texto = response.json().get('text', '')
-                    print(f"[Whisper] Transcrição: {texto}")
-                    return texto, True
-                else:
-                    print(f"[Whisper] Erro: {response.status_code} - {response.text}")
-                    return "", False
-
-            finally:
-                if os.path.exists(tmp_path):
-                    os.remove(tmp_path)
-
-        except Exception as e:
-            print(f"[Whisper] Erro ao transcrever áudio: {e}")
-            return "", False
+    # =========================================================================
+    # EXTRAÇÃO DE IMAGEM (Gemini Vision)
+    # =========================================================================
 
     def extrair_de_imagem(self, image_url: str, caption: str = "") -> Dict:
-        """Extrai informações de nota fiscal/recibo de uma imagem usando GPT-4 Vision"""
+        """Extrai informações de nota fiscal/recibo de uma imagem"""
         try:
             print(f"[Vision] Baixando imagem de: {image_url}")
             response = requests.get(image_url, timeout=30)
@@ -392,100 +336,14 @@ Se o áudio estiver inaudível ou vazio, retorne: [INAUDÍVEL]"""
             else:
                 mime_type = 'image/jpeg'
 
-            prompt_texto = f"""Você é um assistente financeiro especializado em analisar imagens de documentos financeiros.
-
-Analise esta imagem cuidadosamente. Pode ser:
-- Nota fiscal / cupom fiscal
-- Comprovante de pagamento (PIX, cartão, transferência)
-- Recibo
-- Boleto
-- Extrato bancário
-- Qualquer documento com informação financeira
-- Ou uma imagem comum (foto, print, etc.)
-
-{"O usuário disse: " + caption if caption else ""}
-
-INSTRUÇÕES:
-1. Se conseguir identificar um documento financeiro com valor claro, extraia os dados
-2. Se a imagem estiver borrada, cortada ou ilegível, pergunte ao usuário
-3. Se for uma imagem comum (não financeira), pergunte o que o usuário deseja registrar
-4. Se tiver múltiplos valores, pergunte qual é o valor principal
-
-Retorne APENAS um JSON válido (sem markdown, sem ```):
-{{
-  "entendeu": true ou false,
-  "tipo": "despesa" ou "receita" (se entendeu),
-  "valor": número decimal do valor total (se entendeu),
-  "descricao": "descrição clara do que foi comprado/pago",
-  "estabelecimento": "nome do estabelecimento se visível",
-  "categoria_sugerida": "Alimentação", "Transporte", "Combustível", "Saúde", "Educação", "Lazer", "Casa", "Vestuário", "Mercado", "Restaurante", "Farmácia" ou "Outros",
-  "data_documento": "YYYY-MM-DD" se visível ou null,
-  "confianca": número de 0.0 a 1.0 baseado na clareza,
-  "pergunta": null se entendeu tudo, ou "sua pergunta aqui" se precisar de esclarecimento,
-  "observacoes": "detalhes extras que notou na imagem"
-}}
-
-IMPORTANTE: Se não entendeu ou precisa de mais informações, coloque entendeu: false e faça uma pergunta clara e amigável.
-"""
-
-            url = "https://openrouter.ai/api/v1/chat/completions"
-
-            headers = {
-                "Authorization": f"Bearer {self.openrouter_api_key}",
-                "Content-Type": "application/json"
-            }
-
-            # Usa o modelo configurado (ex: google/gemini-2.5-flash)
-            payload = {
-                "model": self.openrouter_model,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt_texto},
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": f"data:{mime_type};base64,{image_base64}"}
-                            }
-                        ]
-                    }
-                ],
-                "max_tokens": 1000
-            }
-
-            print(f"[Vision] Usando modelo: {self.openrouter_model}")
-
-            response = requests.post(url, headers=headers, json=payload, timeout=60)
-
-            if response.status_code == 200:
-                content = response.json()['choices'][0]['message']['content']
-                resultado = self._parsear_resposta_llm(content)
-
-                if resultado.get('data_documento'):
-                    try:
-                        resultado['data_transacao'] = datetime.strptime(
-                            resultado['data_documento'], "%Y-%m-%d"
-                        )
-                    except:
-                        resultado['data_transacao'] = datetime.now()
-                else:
-                    resultado['data_transacao'] = datetime.now()
-
-                if resultado.get('estabelecimento') and resultado.get('descricao'):
-                    resultado['descricao'] = f"{resultado['descricao']} - {resultado['estabelecimento']}"
-
-                print(f"[Vision] Extração: valor={resultado.get('valor')}, tipo={resultado.get('tipo')}")
-                return resultado
-            else:
-                print(f"[Vision] Erro: {response.status_code} - {response.text}")
-                return self._resultado_imagem_erro()
+            return self.extrair_de_imagem_base64(image_base64, mime_type, caption)
 
         except Exception as e:
             print(f"[Vision] Erro ao processar imagem: {e}")
             return self._resultado_imagem_erro()
 
     def extrair_de_imagem_base64(self, base64_data: str, mimetype: str = "image/jpeg", caption: str = "") -> Dict:
-        """Extrai informações de imagem a partir de base64 (mídia já descriptografada)"""
+        """Extrai informações de imagem a partir de base64"""
         try:
             print(f"[Vision] Processando imagem base64 ({len(base64_data)} chars)")
 
@@ -533,7 +391,7 @@ IMPORTANTE: Se não entendeu ou precisa de mais informações, coloque entendeu:
                 else:
                     resultado['data_transacao'] = datetime.now()
 
-                print(f"[Vision] Extração base64: valor={resultado.get('valor')}, tipo={resultado.get('tipo')}")
+                print(f"[Vision] Extração: valor={resultado.get('valor')}, tipo={resultado.get('tipo')}")
                 return resultado
             else:
                 print(f"[Vision] Erro: {response.status_code} - {response.text}")
@@ -593,6 +451,10 @@ IMPORTANTE: Se não entendeu ou precisa de mais informações, coloque entendeu:
             "entendeu": False,
             "pergunta": "Não consegui ler a imagem. Pode me dizer o valor e o que foi?"
         }
+
+    # =========================================================================
+    # EXTRAÇÃO DE EXTRATO/FATURA
+    # =========================================================================
 
     def extrair_extrato_multiplo(self, base64_data: str, mimetype: str = "image/jpeg", caption: str = "") -> Dict:
         """
@@ -755,6 +617,10 @@ Para documento fiscal, retorne transacoes vazio e preencha valor_total e descric
         except Exception as e:
             print(f"[PDF] Erro: {e}")
             return {"tipo_documento": "erro", "transacoes": [], "observacoes": str(e)}
+
+    # =========================================================================
+    # MENSAGENS AUXILIARES
+    # =========================================================================
 
     def gerar_mensagem_confirmacao(self, transacao_info: Dict, transacao_id: int = None) -> str:
         """Gera mensagem de confirmação para enviar ao usuário"""

@@ -19,40 +19,17 @@ class Settings:
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
     SYSTEM_API_KEY: str = os.getenv("SYSTEM_API_KEY", "")
 
-    # LLM
-    LLM_OPCAO: int = int(os.getenv("LLM_OPCAO", 2))
-
-    # Ollama
-    OLLAMA_URL: str = os.getenv("OLLAMA_URL", "http://localhost:11434")
-    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "openchat:7b")
-
-    # OpenRouter
+    # LLM (OpenRouter - único provider)
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
-    OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "openai/gpt-3.5-turbo")
-
-    # OpenAI (Whisper)
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
 
     # Redis (para cache/sessões)
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-    # WhatsApp API (Evolution ou similar)
+    # WhatsApp API (UAZAPI)
     WHATSAPP_API_URL: str = os.getenv("WHATSAPP_API_URL", "")
     WHATSAPP_API_KEY: str = os.getenv("WHATSAPP_API_KEY", "")
     WHATSAPP_INSTANCE: str = os.getenv("WHATSAPP_INSTANCE", "")
-
-    # Aliases para compatibilidade
-    @property
-    def EVOLUTION_URL(self):
-        return self.WHATSAPP_API_URL
-
-    @property
-    def EVOLUTION_API_KEY(self):
-        return self.WHATSAPP_API_KEY
-
-    @property
-    def EVOLUTION_INSTANCE(self):
-        return self.WHATSAPP_INSTANCE
 
 
 settings = Settings()
