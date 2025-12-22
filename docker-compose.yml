@@ -6,7 +6,8 @@
 # Para serviços isolados, use:
 #   - docker-compose.postgres.yml  (banco de dados)
 #   - docker-compose.redis.yml     (cache/memória)
-#   - docker-compose.backend.yml   (aplicação)
+#   - docker-compose.backend.yml   (API backend)
+#   - docker-compose.frontend.yml  (frontend Next.js)
 
 services:
 
@@ -95,7 +96,7 @@ services:
     volumes:
       # Para desenvolvimento: hot reload
       - ./backend:/app/backend:ro
-      - ./frontend:/app/frontend:ro
+      - uploads_data:/app/uploads
     networks:
       - kairix_network
 
@@ -138,9 +139,35 @@ services:
       - "com.docker.stack=kairixfinanceiro"
       - "com.docker.service=kairix-worker"
 
+  # ============================================
+  # Frontend Next.js
+  # ============================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://backend:8014
+    container_name: kairix_frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://backend:8014
+    ports:
+      - "3014:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - kairix_network
+    labels:
+      - "com.docker.stack=kairixfinanceiro"
+      - "com.docker.service=kairix-frontend"
+
 volumes:
   postgres_data:
   redis_data:
+  uploads_data:
 
 networks:
   kairix_network:

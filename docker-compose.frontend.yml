@@ -1,0 +1,60 @@
+# ============================================
+# KAIRIX FINANCEIRO - Frontend Isolado
+# ============================================
+# Para produção com Traefik
+#
+# Antes de usar, valide se a rede externa já existe:
+# docker network create kairix_network
+# docker network create proxy
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://kairix_backend:8014}
+    container_name: kairix_frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://kairix_backend:8014}
+    ports:
+      - "3014:3000"
+    networks:
+      - kairix_network
+      - proxy
+    labels:
+      # Labels gerais
+      - "com.docker.stack=kairixfinanceiro"
+      - "com.docker.service=kairix-frontend"
+
+      # Traefik configuração
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+
+      # Roteamento HTTP (redireciona para HTTPS)
+      - "traefik.http.routers.kairix-app.rule=Host(`app.kairix.com.br`)"
+      - "traefik.http.routers.kairix-app.entrypoints=http"
+      - "traefik.http.routers.kairix-app.middlewares=redirect-to-https@docker"
+
+      # Roteamento HTTPS
+      - "traefik.http.routers.kairix-app-secure.rule=Host(`app.kairix.com.br`)"
+      - "traefik.http.routers.kairix-app-secure.entrypoints=https"
+      - "traefik.http.routers.kairix-app-secure.tls=true"
+      - "traefik.http.routers.kairix-app-secure.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.kairix-app-secure.service=kairix-app-service"
+
+      # Middleware para redirect HTTP -> HTTPS
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+
+      # Serviço - porta interna do container
+      - "traefik.http.services.kairix-app-service.loadbalancer.server.port=3000"
+
+networks:
+  kairix_network:
+    name: kairix_network
+    external: true
+  proxy:
+    external: true

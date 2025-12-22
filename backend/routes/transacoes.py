@@ -13,7 +13,7 @@ from backend.schemas import (
 
 router = APIRouter(prefix="/api/transacoes", tags=["Transações"])
 
-UPLOAD_DIR = Path("frontend/static/uploads")
+UPLOAD_DIR = Path("/app/uploads") if Path("/app").exists() else Path("uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 

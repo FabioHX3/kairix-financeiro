@@ -42,7 +42,7 @@ services:
     volumes:
       # Para desenvolvimento: hot reload
       - ./backend:/app/backend:ro
-      - ./frontend:/app/frontend:ro
+      - uploads_data:/app/uploads
     networks:
       - kairix_network
       - proxy
@@ -73,6 +73,9 @@ services:
 
       # Serviço - porta interna do container
       - "traefik.http.services.financeiro-service.loadbalancer.server.port=8014"
+
+volumes:
+  uploads_data:
 
 networks:
   kairix_network:
