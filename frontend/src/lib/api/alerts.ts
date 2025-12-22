@@ -1,5 +1,5 @@
 import api from './client'
-import type { ContaVencer, Anomalia } from '@/types/models'
+import type { ContaVencer, Anomalia, AlertSummary, VerificationResult } from '@/types/models'
 
 // Get bills due soon
 export async function getBillsDue(dias = 7): Promise<ContaVencer[]> {
@@ -20,25 +20,25 @@ export async function getAnomalies(percentual = 0.30): Promise<Anomalia[]> {
 }
 
 // Get daily summary
-export async function getDailySummary(): Promise<any> {
-  const response = await api.get('/api/alertas/resumo/diario')
+export async function getDailySummary(): Promise<AlertSummary> {
+  const response = await api.get<AlertSummary>('/api/alertas/resumo/diario')
   return response.data
 }
 
 // Get weekly summary
-export async function getWeeklySummary(): Promise<any> {
-  const response = await api.get('/api/alertas/resumo/semanal')
+export async function getWeeklySummary(): Promise<AlertSummary> {
+  const response = await api.get<AlertSummary>('/api/alertas/resumo/semanal')
   return response.data
 }
 
 // Get monthly summary
-export async function getMonthlySummary(): Promise<any> {
-  const response = await api.get('/api/alertas/resumo/mensal')
+export async function getMonthlySummary(): Promise<AlertSummary> {
+  const response = await api.get<AlertSummary>('/api/alertas/resumo/mensal')
   return response.data
 }
 
 // Execute verification now
-export async function executeVerification(): Promise<any> {
-  const response = await api.post('/api/alertas/executar-agora')
+export async function executeVerification(): Promise<VerificationResult> {
+  const response = await api.post<VerificationResult>('/api/alertas/executar-agora')
   return response.data
 }

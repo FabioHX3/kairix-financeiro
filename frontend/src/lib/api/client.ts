@@ -1,4 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
+import type { ApiError } from '@/types/models'
 
 // Create axios instance
 export const api = axios.create({
@@ -7,6 +8,7 @@ export const api = axios.create({
     'Content-Type': 'application/json',
   },
   withCredentials: true,
+  timeout: 30000, // 30 seconds timeout
 })
 
 // Request interceptor - add auth token
@@ -29,11 +31,12 @@ api.interceptors.request.use(
 // Response interceptor - handle errors
 api.interceptors.response.use(
   (response) => response,
-  (error: AxiosError) => {
+  (error: AxiosError<ApiError>) => {
     if (error.response?.status === 401) {
       // Clear token and redirect to login
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token')
+        document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
         // Only redirect if not already on auth pages
         if (!window.location.pathname.startsWith('/login') &&
             !window.location.pathname.startsWith('/cadastro')) {
@@ -45,10 +48,14 @@ api.interceptors.response.use(
   }
 )
 
-// Helper to set token
+// Helper to set token (with secure cookie)
 export const setAuthToken = (token: string) => {
   if (typeof window !== 'undefined') {
     localStorage.setItem('token', token)
+    // Set cookie with security flags
+    const isSecure = window.location.protocol === 'https:'
+    const secureFlag = isSecure ? '; Secure' : ''
+    document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Strict${secureFlag}`
   }
 }
 
@@ -56,6 +63,7 @@ export const setAuthToken = (token: string) => {
 export const clearAuthToken = () => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('token')
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
   }
 }
 
@@ -65,6 +73,18 @@ export const getAuthToken = (): string | null => {
     return localStorage.getItem('token')
   }
   return null
+}
+
+// Helper to extract error message
+export const getErrorMessage = (error: unknown): string => {
+  if (axios.isAxiosError(error)) {
+    const axiosError = error as AxiosError<ApiError>
+    return axiosError.response?.data?.detail || axiosError.message || 'Erro desconhecido'
+  }
+  if (error instanceof Error) {
+    return error.message
+  }
+  return 'Erro desconhecido'
 }
 
 export default api

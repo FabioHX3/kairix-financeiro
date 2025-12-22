@@ -48,22 +48,33 @@ export function CategoryChart({ title, data, isLoading, type }: CategoryChartPro
 
   const total = data.reduce((acc, item) => acc + item.total, 0)
 
+  // Generate accessible description
+  const chartDescription = data
+    .slice(0, 5)
+    .map((item) => `${item.categoria_nome}: ${formatCurrency(item.total)} (${item.percentual.toFixed(0)}%)`)
+    .join(', ')
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-lg">{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <DonutChart
-          data={chartData}
-          category="value"
-          index="name"
-          valueFormatter={formatCurrency}
-          colors={data.map((d) => d.categoria_cor)}
-          className="h-48"
-          showAnimation
-          showTooltip
-        />
+        <div
+          role="img"
+          aria-label={`Gráfico de ${title}. Total: ${formatCurrency(total)}. Distribuição por categoria: ${chartDescription}`}
+        >
+          <DonutChart
+            data={chartData}
+            category="value"
+            index="name"
+            valueFormatter={formatCurrency}
+            colors={data.map((d) => d.categoria_cor)}
+            className="h-48"
+            showAnimation
+            showTooltip
+          />
+        </div>
         <div className="mt-4 space-y-2">
           {data.slice(0, 5).map((item) => (
             <div key={item.categoria_id} className="flex items-center justify-between text-sm">

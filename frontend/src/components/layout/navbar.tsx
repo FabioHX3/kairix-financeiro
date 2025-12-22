@@ -47,8 +47,10 @@ export function Navbar() {
           size="icon"
           className="mr-2 md:hidden"
           onClick={toggleSidebar}
+          aria-label={sidebarOpen ? 'Fechar menu' : 'Abrir menu'}
+          aria-expanded={sidebarOpen}
         >
-          {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          {sidebarOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
         </Button>
 
         {/* Logo */}
@@ -86,9 +88,17 @@ export function Navbar() {
         {/* Right side */}
         <div className="flex items-center gap-2 ml-auto">
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-[10px] font-medium flex items-center justify-center text-white">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative"
+            aria-label="Notificações (3 não lidas)"
+          >
+            <Bell className="h-5 w-5" aria-hidden="true" />
+            <span
+              className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-[10px] font-medium flex items-center justify-center text-white"
+              aria-hidden="true"
+            >
               3
             </span>
           </Button>
@@ -96,7 +106,11 @@ export function Navbar() {
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+              <Button
+                variant="ghost"
+                className="relative h-9 w-9 rounded-full"
+                aria-label={`Menu do usuário ${user?.nome || ''}`}
+              >
                 <Avatar className="h-9 w-9">
                   <AvatarFallback className="bg-primary text-white">
                     {userInitials}

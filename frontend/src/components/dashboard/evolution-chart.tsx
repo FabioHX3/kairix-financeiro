@@ -46,24 +46,35 @@ export function EvolutionChart({ data, isLoading }: EvolutionChartProps) {
     Saldo: item.saldo,
   }))
 
+  // Generate accessible description
+  const latestMonth = data[data.length - 1]
+  const chartDescription = latestMonth
+    ? `Último mês: Receitas ${formatCurrency(latestMonth.receitas)}, Despesas ${formatCurrency(latestMonth.despesas)}, Saldo ${formatCurrency(latestMonth.saldo)}`
+    : 'Sem dados'
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-lg">Evolução Mensal</CardTitle>
       </CardHeader>
       <CardContent>
-        <AreaChart
-          data={chartData}
-          index="mes"
-          categories={['Receitas', 'Despesas']}
-          colors={['emerald', 'rose']}
-          valueFormatter={formatCurrency}
-          className="h-[300px]"
-          showAnimation
-          showLegend
-          showGridLines
-          curveType="monotone"
-        />
+        <div
+          role="img"
+          aria-label={`Gráfico de evolução mensal mostrando receitas e despesas ao longo dos últimos ${data.length} meses. ${chartDescription}`}
+        >
+          <AreaChart
+            data={chartData}
+            index="mes"
+            categories={['Receitas', 'Despesas']}
+            colors={['emerald', 'rose']}
+            valueFormatter={formatCurrency}
+            className="h-[300px]"
+            showAnimation
+            showLegend
+            showGridLines
+            curveType="monotone"
+          />
+        </div>
       </CardContent>
     </Card>
   )

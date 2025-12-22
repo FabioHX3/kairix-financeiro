@@ -314,6 +314,65 @@ export interface UserPattern {
   criado_em: string
 }
 
+// Recurrence Forecast
+export interface RecurrenceForecast {
+  mes: number
+  ano: number
+  receitas_previstas: number
+  despesas_previstas: number
+  saldo_previsto: number
+  itens: RecurrenceForecastItem[]
+}
+
+export interface RecurrenceForecastItem {
+  recorrencia_id: number
+  descricao: string
+  tipo: TipoTransacao
+  valor: number
+  data_prevista: string
+  categoria?: string
+}
+
+// Recurrence Summary
+export interface RecurrenceSummary {
+  total_recorrencias: number
+  receitas_mensais: number
+  despesas_mensais: number
+  saldo_mensal: number
+  por_frequencia: Record<FrequenciaRecorrencia, number>
+}
+
+// Recurrence Balance
+export interface RecurrenceBalance {
+  receitas_fixas: number
+  despesas_fixas: number
+  saldo_fixo: number
+  percentual_comprometido: number
+}
+
+// Alert Summaries
+export interface AlertSummary {
+  periodo: string
+  total_receitas: number
+  total_despesas: number
+  saldo: number
+  quantidade_transacoes: number
+  principais_categorias: AlertCategorySummary[]
+}
+
+export interface AlertCategorySummary {
+  categoria: string
+  total: number
+  percentual: number
+}
+
+// Verification Result
+export interface VerificationResult {
+  success: boolean
+  job_id?: string
+  message: string
+}
+
 // API Response Types
 export interface ApiError {
   detail: string

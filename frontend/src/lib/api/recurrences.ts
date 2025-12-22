@@ -1,7 +1,10 @@
 import api from './client'
 import type {
   RecurringTransaction,
-  RecurringTransactionCriar
+  RecurringTransactionCriar,
+  RecurrenceForecast,
+  RecurrenceSummary,
+  RecurrenceBalance
 } from '@/types/models'
 
 // List recurrences
@@ -41,19 +44,23 @@ export async function detectAndSaveRecurrences(): Promise<RecurringTransaction[]
 }
 
 // Get forecast
-export async function getForecast(): Promise<any> {
-  const response = await api.get('/api/recorrencias/previsao')
+export async function getForecast(mes?: number, ano?: number): Promise<RecurrenceForecast> {
+  const params = new URLSearchParams()
+  if (mes) params.append('mes', mes.toString())
+  if (ano) params.append('ano', ano.toString())
+  const query = params.toString() ? `?${params.toString()}` : ''
+  const response = await api.get<RecurrenceForecast>(`/api/recorrencias/previsao${query}`)
   return response.data
 }
 
 // Get summary
-export async function getRecurrenceSummary(): Promise<any> {
-  const response = await api.get('/api/recorrencias/resumo')
+export async function getRecurrenceSummary(): Promise<RecurrenceSummary> {
+  const response = await api.get<RecurrenceSummary>('/api/recorrencias/resumo')
   return response.data
 }
 
 // Get balance
-export async function getRecurrenceBalance(): Promise<any> {
-  const response = await api.get('/api/recorrencias/saldo')
+export async function getRecurrenceBalance(): Promise<RecurrenceBalance> {
+  const response = await api.get<RecurrenceBalance>('/api/recorrencias/saldo')
   return response.data
 }

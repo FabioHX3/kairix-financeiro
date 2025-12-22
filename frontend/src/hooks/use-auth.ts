@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import * as authApi from '@/lib/api/auth'
+import { setAuthToken, clearAuthToken, getErrorMessage } from '@/lib/api/client'
 import type { LoginRequest, UsuarioCriar, UsuarioAtualizar } from '@/types/models'
 
 // Query keys
@@ -47,8 +48,8 @@ export function useLogin() {
       const user = await authApi.getMe()
       setAuth(user, response.access_token)
 
-      // Set cookie for middleware
-      document.cookie = `token=${response.access_token}; path=/; max-age=86400; SameSite=Lax`
+      // Set token with secure cookie
+      setAuthToken(response.access_token)
 
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: authKeys.user })
@@ -56,8 +57,9 @@ export function useLogin() {
       toast.success('Login realizado com sucesso!')
       router.push('/')
     },
-    onError: () => {
-      toast.error('Email ou senha inválidos')
+    onError: (error: unknown) => {
+      const message = getErrorMessage(error)
+      toast.error(message === 'Erro desconhecido' ? 'Email ou senha inválidos' : message)
     },
   })
 }
@@ -72,9 +74,9 @@ export function useRegister() {
       toast.success('Conta criada com sucesso! Faça login para continuar.')
       router.push('/login')
     },
-    onError: (error: any) => {
-      const message = error.response?.data?.detail || 'Erro ao criar conta'
-      toast.error(message)
+    onError: (error: unknown) => {
+      const message = getErrorMessage(error)
+      toast.error(message === 'Erro desconhecido' ? 'Erro ao criar conta' : message)
     },
   })
 }
@@ -91,8 +93,9 @@ export function useUpdateProfile() {
       queryClient.setQueryData(authKeys.user, user)
       toast.success('Perfil atualizado com sucesso!')
     },
-    onError: () => {
-      toast.error('Erro ao atualizar perfil')
+    onError: (error: unknown) => {
+      const message = getErrorMessage(error)
+      toast.error(message === 'Erro desconhecido' ? 'Erro ao atualizar perfil' : message)
     },
   })
 }
@@ -105,8 +108,9 @@ export function useChangePassword() {
     onSuccess: () => {
       toast.success('Senha alterada com sucesso!')
     },
-    onError: () => {
-      toast.error('Erro ao alterar senha. Verifique a senha atual.')
+    onError: (error: unknown) => {
+      const message = getErrorMessage(error)
+      toast.error(message === 'Erro desconhecido' ? 'Erro ao alterar senha. Verifique a senha atual.' : message)
     },
   })
 }
@@ -118,8 +122,8 @@ export function useLogout() {
   const { logout } = useAuthStore()
 
   return () => {
-    // Clear cookie
-    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    // Clear token and cookie
+    clearAuthToken()
 
     // Clear store
     logout()
