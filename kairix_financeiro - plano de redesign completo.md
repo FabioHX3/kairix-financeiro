@@ -282,102 +282,90 @@ tenants (empresa/familia)
 
 ---
 
-### MVP 1: Agente Inteligente Basico
+### MVP 1: Agente Inteligente Basico ✅ CONCLUIDO
 **Entrega:** IA que extrai transacoes com confirmacao e aprende padroes
 
 #### Fase 1.1: Estrutura Base
-- [ ] Criar pasta `backend/services/agents/`
-- [ ] Criar `base_agent.py` com classe abstrata
-- [ ] Criar `memory_service.py` (Redis + Postgres)
-- [ ] Adicionar campo `origin` em transacoes (whatsapp_text, whatsapp_image, web)
+- [x] Criar pasta `backend/services/agents/`
+- [x] Criar `base_agent.py` com classe abstrata
+- [x] Criar `memory_service.py` (Redis + Postgres)
+- [x] Adicionar campo `origin` em transacoes (whatsapp_text, whatsapp_image, web)
 
 #### Fase 1.2: Gateway Agent
-- [ ] Refatorar `agent.py` atual para `gateway_agent.py`
-- [ ] Implementar classificacao de intencao (registrar, consultar, configurar)
-- [ ] Implementar fluxo de confirmacao antes de salvar
-- [ ] Gerar codigo curto para cada transacao (ex: AB12C)
+- [x] Refatorar `agent.py` atual para `gateway_agent.py`
+- [x] Implementar classificacao de intencao (registrar, consultar, configurar)
+- [x] Implementar fluxo de confirmacao antes de salvar
+- [x] Gerar codigo curto para cada transacao (ex: AB12C)
 
 #### Fase 1.3: Extractor Agent Melhorado
-- [ ] Mover logica de `llm.py` para `extractor_agent.py`
-- [ ] Melhorar extracao de texto (valor, descricao, tipo)
-- [ ] Implementar deteccao de multiplos itens em notas
-- [ ] Perguntar "total ou detalhado" quando detectar lista
-
-**Teste:** Enviar "gastei 150 no mercado" via WhatsApp
-**Resultado esperado:** "Entendi: Despesa R$ 150,00 - Mercado. Categoria: Alimentacao. Confirma?"
+- [x] Mover logica de `llm.py` para `extractor_agent.py`
+- [x] Melhorar extracao de texto (valor, descricao, tipo)
+- [x] Implementar deteccao de multiplos itens em notas
+- [x] Perguntar "total ou detalhado" quando detectar lista
 
 ---
 
-### MVP 2: Aprendizado de Padroes
+### MVP 2: Aprendizado de Padroes ✅ CONCLUIDO
 **Entrega:** IA que aprende e sugere categorias automaticamente
 
 #### Fase 2.1: Tabelas de Aprendizado
-- [ ] Criar tabela `user_patterns` (keywords, categoria, confianca)
-- [ ] Criar tabela `user_preferences` (personalidade, alertas)
+- [x] Criar tabela `user_patterns` (keywords, categoria, confianca)
+- [x] Criar tabela `user_preferences` (personalidade, alertas)
 
 #### Fase 2.2: Learning Agent
-- [ ] Salvar padrao apos cada transacao confirmada
-- [ ] Sugerir categoria baseada em historico
-- [ ] Aumentar confianca conforme uso repetido
-- [ ] Auto-confirmar quando confianca > 90%
+- [x] Salvar padrao apos cada transacao confirmada
+- [x] Sugerir categoria baseada em historico
+- [x] Aumentar confianca conforme uso repetido
+- [x] Auto-confirmar quando confianca > 90%
 
 #### Fase 2.3: Personality Agent
-- [ ] Criar endpoint `/api/auth/preferences`
-- [ ] Implementar 3 personalidades (formal, amigavel, divertido)
-- [ ] Aplicar estilo nas respostas
-
-**Teste:** Registrar "Mercado X" 3 vezes como Alimentacao
-**Resultado esperado:** Na 4a vez, auto-categoriza sem perguntar
+- [x] Criar endpoint `/api/auth/preferences`
+- [x] Implementar 3 personalidades (formal, amigavel, divertido)
+- [x] Aplicar estilo nas respostas
 
 ---
 
-### MVP 3: Deteccao de Recorrencias
+### MVP 3: Deteccao de Recorrencias ✅ CONCLUIDO
 **Entrega:** IA que detecta e preve contas fixas
 
 #### Fase 3.1: Tabelas de Recorrencia
-- [ ] Criar tabela `recurring_transactions`
-- [ ] Criar tabela `scheduled_bills`
+- [x] Criar tabela `recurring_transactions`
+- [x] Criar tabela `scheduled_bills`
 
 #### Fase 3.2: Deteccao Automatica
-- [ ] Analisar historico para encontrar padroes (mesmo valor, mesma data)
-- [ ] Sugerir criar recorrencia quando detectar
-- [ ] Prever proxima ocorrencia
+- [x] Analisar historico para encontrar padroes (mesmo valor, mesma data)
+- [x] Sugerir criar recorrencia quando detectar
+- [x] Prever proxima ocorrencia
 
 #### Fase 3.3: Consultas de Recorrencia
-- [ ] Consultant Agent: "quais minhas contas fixas?"
-- [ ] Listar recorrencias detectadas
-- [ ] Mostrar previsao do mes
-
-**Teste:** Registrar Netflix R$ 55,90 no dia 15 por 3 meses
-**Resultado esperado:** "Percebi que Netflix e mensal. Criar lembrete automatico?"
+- [x] Consultant Agent: "quais minhas contas fixas?"
+- [x] Listar recorrencias detectadas
+- [x] Mostrar previsao do mes
 
 ---
 
-### MVP 4: Alertas Proativos
+### MVP 4: Alertas Proativos ✅ CONCLUIDO
 **Entrega:** Sistema que avisa antes de vencer/gastar demais
 
 #### Fase 4.1: Scheduler Service
-- [ ] Configurar APScheduler ou Celery Beat
-- [ ] Job para verificar contas a vencer (diario)
-- [ ] Job para verificar anomalias (diario)
+- [x] Configurar arq worker (substituiu APScheduler)
+- [x] Job para verificar contas a vencer (diario)
+- [x] Job para verificar anomalias (diario)
 
 #### Fase 4.2: Proactive Agent
-- [ ] Alertar 3 dias antes do vencimento
-- [ ] Alertar no dia do vencimento
-- [ ] Detectar gasto 30% acima da media
-- [ ] Enviar via WhatsApp
+- [x] Alertar 3 dias antes do vencimento
+- [x] Alertar no dia do vencimento
+- [x] Detectar gasto 30% acima da media
+- [x] Enviar via WhatsApp
 
 #### Fase 4.3: Resumos Automaticos
-- [ ] Resumo diario (opcional, configuravel)
-- [ ] Resumo semanal (segunda-feira)
-- [ ] Resumo mensal (dia 1)
-
-**Teste:** Criar conta "Aluguel" vencimento dia 10
-**Resultado esperado:** Dia 7: "Lembrete: Aluguel vence em 3 dias (R$ 1.500)"
+- [x] Resumo diario (opcional, configuravel)
+- [x] Resumo semanal (segunda-feira)
+- [x] Resumo mensal (dia 1)
 
 ---
 
-### MVP 5: Frontend Next.js
+### MVP 5: Frontend Next.js ❌ PENDENTE
 **Entrega:** Interface web moderna e responsiva
 
 #### Fase 5.1: Setup Projeto
@@ -412,42 +400,60 @@ tenants (empresa/familia)
 
 ---
 
-### MVP 6: Integracao Final
+### MVP 6: Integracao Final 🔄 EM ANDAMENTO
 **Entrega:** Sistema completo funcionando
 
 #### Fase 6.1: Integracao
-- [ ] Conectar frontend ao backend
-- [ ] Testar todos os fluxos WhatsApp
-- [ ] Testar todos os fluxos web
+- [x] Conectar frontend ao backend (frontend legado)
+- [x] Testar todos os fluxos WhatsApp
+- [ ] Testar todos os fluxos web (aguardando novo frontend)
 
 #### Fase 6.2: Polish
-- [ ] Otimizar prompts
-- [ ] Ajustar UX
-- [ ] Performance tuning
+- [x] Otimizar prompts
+- [ ] Ajustar UX (aguardando novo frontend)
+- [x] Performance tuning (httpx async, logging)
 
 #### Fase 6.3: Deploy
 - [ ] Configurar MinIO para anexos
-- [ ] Ajustar Docker Compose
+- [x] Ajustar Docker Compose
 - [ ] Documentacao basica
 
 ---
 
-## ARQUIVOS CRITICOS
+## ARQUIVOS IMPLEMENTADOS
 
-### Backend - Agentes
-- `backend/services/agents/gateway_agent.py` - Orquestrador
-- `backend/services/agents/extractor_agent.py` - Extrai transacoes
-- `backend/services/agents/learning_agent.py` - Aprende padroes
-- `backend/services/agents/proactive_agent.py` - Alertas
-- `backend/services/memory_service.py` - Memoria unificada
+### Backend - Agentes ✅
+```
+backend/services/agents/
+├── __init__.py
+├── base_agent.py          ✅ Classe abstrata
+├── gateway_agent.py       ✅ Orquestrador
+├── extractor_agent.py     ✅ Extrai transacoes
+├── learning_agent.py      ✅ Aprende padroes
+├── proactive_agent.py     ✅ Alertas
+├── consultant_agent.py    ✅ Consultas
+├── recurrence_agent.py    ✅ Recorrencias
+├── personality_agent.py   ✅ Estilo de resposta
+└── processor.py           ✅ Ponto de entrada
+```
 
-### Backend - Existentes a Modificar
-- `backend/services/agent.py` - Refatorar para gateway
-- `backend/services/llm.py` - Mover logica para extractor
-- `backend/routes/whatsapp.py` - Simplificar para usar gateway
-- `backend/models/models.py` - Adicionar novos modelos
+### Backend - Servicos ✅
+```
+backend/services/
+├── __init__.py
+├── llm.py                 ✅ Processamento LLM (async httpx)
+├── whatsapp.py            ✅ Envio WhatsApp
+├── memory_service.py      ✅ Memoria Redis
+└── queue_service.py       ✅ Fila arq
+```
 
-### Frontend - Criticos
+### Backend - Worker ✅
+```
+backend/
+└── worker.py              ✅ Worker arq com jobs agendados
+```
+
+### Frontend - Pendente
 - `app/(dashboard)/page.tsx` - Dashboard principal
 - `lib/api/client.ts` - Cliente HTTP
 - `stores/auth-store.ts` - Autenticacao
@@ -457,11 +463,11 @@ tenants (empresa/familia)
 
 ## PROXIMOS PASSOS
 
-1. **Aprovar este plano**
-2. **Comecar pela Fase 1** - Migrations e estrutura base
-3. **Iterar** - Cada fase com revisao antes de seguir
+1. **MVP 5** - Criar frontend Next.js 15
+2. **MVP 6** - Integracao final e deploy
 
 ---
 
-*Plano gerado em: 10/12/2024*
-*Versao: 1.0*
+*Plano criado em: 10/12/2025*
+*Ultima atualizacao: 22/12/2025*
+*Versao: 1.1*
