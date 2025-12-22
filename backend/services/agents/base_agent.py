@@ -4,11 +4,14 @@ Base Agent - Classe abstrata para todos os agentes do sistema Kairix.
 Cada agente especializado herda desta classe e implementa sua lógica específica.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Optional
 from enum import Enum
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 class IntentType(str, Enum):
@@ -128,4 +131,5 @@ class BaseAgent(ABC):
     def log(self, message: str, level: str = "info"):
         """Log padronizado com nome do agente"""
         prefix = f"[{self.name.upper()}]"
-        print(f"{prefix} {message}")
+        log_func = getattr(logger, level, logger.info)
+        log_func(f"{prefix} {message}")

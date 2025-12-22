@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import List, Optional
 
 from backend.core.database import get_db
@@ -22,7 +22,7 @@ async def obter_dashboard(
     """Obtém dados completos do dashboard"""
 
     if not mes or not ano:
-        hoje = datetime.now()
+        hoje = datetime.now(timezone.utc)
         mes = mes or hoje.month
         ano = ano or hoje.year
 

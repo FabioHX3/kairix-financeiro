@@ -8,7 +8,7 @@ Responsabilidades:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
 from arq import create_pool
@@ -75,7 +75,7 @@ class QueueService:
                 "job_id": job.job_id,
                 "usuario_id": usuario_id,
                 "status": "enqueued",
-                "enqueued_at": datetime.now().isoformat()
+                "enqueued_at": datetime.now(timezone.utc).isoformat()
             }
 
         except Exception as e:
@@ -98,7 +98,7 @@ class QueueService:
                 "job_id": job.job_id,
                 "tipo": "verificacao_diaria",
                 "status": "enqueued",
-                "enqueued_at": datetime.now().isoformat()
+                "enqueued_at": datetime.now(timezone.utc).isoformat()
             }
 
         except Exception as e:
@@ -117,7 +117,7 @@ class QueueService:
                 "job_id": job.job_id,
                 "tipo": "verificacao_semanal",
                 "status": "enqueued",
-                "enqueued_at": datetime.now().isoformat()
+                "enqueued_at": datetime.now(timezone.utc).isoformat()
             }
 
         except Exception as e:
@@ -136,7 +136,7 @@ class QueueService:
                 "job_id": job.job_id,
                 "tipo": "verificacao_mensal",
                 "status": "enqueued",
-                "enqueued_at": datetime.now().isoformat()
+                "enqueued_at": datetime.now(timezone.utc).isoformat()
             }
 
         except Exception as e:
@@ -202,7 +202,7 @@ class QueueService:
                 "queue_name": "default",
                 "pending_jobs": queue_len,
                 "redis_connected": True,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
 
         except Exception as e:

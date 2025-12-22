@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, ForeignKey, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -7,6 +8,8 @@ import secrets
 import string
 
 from backend.core.database import engine, SessionLocal
+
+logger = logging.getLogger(__name__)
 
 Base = declarative_base()
 
@@ -398,7 +401,7 @@ CATEGORIAS_PADRAO = [
 def criar_tabelas():
     """Cria todas as tabelas no banco de dados"""
     Base.metadata.create_all(bind=engine)
-    print("[OK] Tabelas criadas com sucesso!")
+    logger.info("Tabelas criadas com sucesso!")
 
 
 def inserir_categorias_padrao():
@@ -413,12 +416,12 @@ def inserir_categorias_padrao():
                 db.add(categoria)
 
             db.commit()
-            print(f"[OK] {len(CATEGORIAS_PADRAO)} categorias padrao inseridas!")
+            logger.info(f"{len(CATEGORIAS_PADRAO)} categorias padrao inseridas!")
         else:
-            print(f"[INFO] Categorias padrao ja existem ({categorias_existentes})")
+            logger.info(f"Categorias padrao ja existem ({categorias_existentes})")
 
     except Exception as e:
         db.rollback()
-        print(f"[ERRO] Erro ao inserir categorias: {e}")
+        logger.error(f"Erro ao inserir categorias: {e}")
     finally:
         db.close()

@@ -9,9 +9,12 @@ Funções:
 """
 
 import json
+import logging
 import re
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+logger = logging.getLogger(__name__)
 from typing import Dict, Tuple
 import httpx
 
@@ -62,16 +65,16 @@ class LLMService:
     def _converter_data_relativa(self, data_relativa: str) -> datetime:
         """Converte data relativa em datetime"""
         if not data_relativa or data_relativa == "hoje":
-            return datetime.now()
+            return datetime.now(timezone.utc)
         elif data_relativa == "ontem":
-            return datetime.now() - timedelta(days=1)
+            return datetime.now(timezone.utc) - timedelta(days=1)
         elif data_relativa == "anteontem":
-            return datetime.now() - timedelta(days=2)
+            return datetime.now(timezone.utc) - timedelta(days=2)
         else:
             try:
-                return datetime.strptime(data_relativa, "%Y-%m-%d")
+                return datetime.strptime(data_relativa, "%Y-%m-%d").replace(tzinfo=timezone.utc)
             except ValueError:
-                return datetime.now()
+                return datetime.now(timezone.utc)
 
     # =========================================================================
     # EXTRAÇÃO DE TEXTO
@@ -147,7 +150,7 @@ Exemplos:
             return resultado
 
         except Exception as e:
-            print(f"Erro ao processar com LLM: {e}")
+            logger.error(f"Erro ao processar com LLM: {e}")
             return self._extracao_basica(texto, categorias_disponiveis)
 
     def _extracao_basica(self, texto: str, categorias_disponiveis: list) -> Dict:
@@ -199,7 +202,7 @@ Exemplos:
             "valor": valor,
             "descricao": texto[:200],
             "categoria_sugerida": "Outros",
-            "data_transacao": datetime.now(),
+            "data_transacao": datetime.now(timezone.utc),
             "confianca": 0.3,
             "entendeu": entendeu,
             "pergunta": pergunta
@@ -212,11 +215,11 @@ Exemplos:
     async def transcrever_audio(self, audio_url: str) -> Tuple[str, bool]:
         """Transcreve áudio para texto usando Gemini via OpenRouter"""
         if not self.openrouter_api_key:
-            print("[Audio] OPENROUTER_API_KEY não configurada")
+            logger.warning("[Audio] OPENROUTER_API_KEY não configurada")
             return "", False
 
         try:
-            print(f"[Audio] Baixando áudio de: {audio_url}")
+            logger.debug(f"[Audio] Baixando áudio de: {audio_url}")
             async with httpx.AsyncClient() as client:
                 response = await client.get(audio_url, timeout=30)
                 response.raise_for_status()
@@ -237,13 +240,13 @@ Exemplos:
             return await self._transcrever_com_gemini(audio_base64, audio_format)
 
         except Exception as e:
-            print(f"[Audio] Erro: {e}")
+            logger.error(f"[Audio] Erro: {e}")
             return "", False
 
     async def transcrever_audio_base64(self, base64_data: str, mimetype: str = "audio/ogg") -> Tuple[str, bool]:
         """Transcreve áudio a partir de base64 usando Gemini via OpenRouter"""
         if not self.openrouter_api_key:
-            print("[Audio] OPENROUTER_API_KEY não configurada")
+            logger.warning("[Audio] OPENROUTER_API_KEY não configurada")
             return "", False
 
         # Extrai formato do mimetype
@@ -263,7 +266,7 @@ Exemplos:
     async def _transcrever_com_gemini(self, audio_base64: str, audio_format: str = "ogg") -> Tuple[str, bool]:
         """Transcreve áudio usando Gemini via OpenRouter"""
         try:
-            print(f"[Audio] Transcrevendo áudio ({audio_format}, {len(audio_base64)} chars)")
+            logger.debug(f"[Audio] Transcrevendo áudio ({audio_format}, {len(audio_base64)} chars)")
 
             url = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -297,25 +300,25 @@ Se o áudio estiver inaudível ou vazio, retorne: [INAUDÍVEL]"""
                 "max_tokens": 500
             }
 
-            print(f"[Audio] Usando modelo: {self.openrouter_model}")
+            logger.debug(f"[Audio] Usando modelo: {self.openrouter_model}")
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(url, headers=headers, json=payload, timeout=60)
 
             if response.status_code == 200:
                 texto = response.json()['choices'][0]['message']['content'].strip()
-                print(f"[Audio] Transcrição: {texto[:100]}...")
+                logger.debug(f"[Audio] Transcrição: {texto[:100]}...")
                 if texto and texto != "[INAUDÍVEL]":
                     return texto, True
                 else:
-                    print("[Audio] Áudio inaudível")
+                    logger.warning("[Audio] Áudio inaudível")
                     return "", False
             else:
-                print(f"[Audio] Erro: {response.status_code} - {response.text[:200]}")
+                logger.error(f"[Audio] Erro: {response.status_code} - {response.text[:200]}")
                 return "", False
 
         except Exception as e:
-            print(f"[Audio] Erro ao transcrever: {e}")
+            logger.error(f"[Audio] Erro ao transcrever: {e}")
             return "", False
 
     # =========================================================================
@@ -325,7 +328,7 @@ Se o áudio estiver inaudível ou vazio, retorne: [INAUDÍVEL]"""
     async def extrair_de_imagem(self, image_url: str, caption: str = "") -> Dict:
         """Extrai informações de nota fiscal/recibo de uma imagem"""
         try:
-            print(f"[Vision] Baixando imagem de: {image_url}")
+            logger.debug(f"[Vision] Baixando imagem de: {image_url}")
             async with httpx.AsyncClient() as client:
                 response = await client.get(image_url, timeout=30)
                 response.raise_for_status()
@@ -343,13 +346,13 @@ Se o áudio estiver inaudível ou vazio, retorne: [INAUDÍVEL]"""
             return await self.extrair_de_imagem_base64(image_base64, mime_type, caption)
 
         except Exception as e:
-            print(f"[Vision] Erro ao processar imagem: {e}")
+            logger.error(f"[Vision] Erro ao processar imagem: {e}")
             return self._resultado_imagem_erro()
 
     async def extrair_de_imagem_base64(self, base64_data: str, mimetype: str = "image/jpeg", caption: str = "") -> Dict:
         """Extrai informações de imagem a partir de base64"""
         try:
-            print(f"[Vision] Processando imagem base64 ({len(base64_data)} chars)")
+            logger.debug(f"[Vision] Processando imagem base64 ({len(base64_data)} chars)")
 
             prompt_texto = self._get_prompt_visao(caption)
 
@@ -377,7 +380,7 @@ Se o áudio estiver inaudível ou vazio, retorne: [INAUDÍVEL]"""
                 "max_tokens": 1000
             }
 
-            print(f"[Vision] Usando modelo: {self.openrouter_model}")
+            logger.debug(f"[Vision] Usando modelo: {self.openrouter_model}")
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(url, headers=headers, json=payload, timeout=60)
@@ -390,20 +393,20 @@ Se o áudio estiver inaudível ou vazio, retorne: [INAUDÍVEL]"""
                     try:
                         resultado['data_transacao'] = datetime.strptime(
                             resultado['data_documento'], "%Y-%m-%d"
-                        )
+                        ).replace(tzinfo=timezone.utc)
                     except ValueError:
-                        resultado['data_transacao'] = datetime.now()
+                        resultado['data_transacao'] = datetime.now(timezone.utc)
                 else:
-                    resultado['data_transacao'] = datetime.now()
+                    resultado['data_transacao'] = datetime.now(timezone.utc)
 
-                print(f"[Vision] Extração: valor={resultado.get('valor')}, tipo={resultado.get('tipo')}")
+                logger.debug(f"[Vision] Extração: valor={resultado.get('valor')}, tipo={resultado.get('tipo')}")
                 return resultado
             else:
-                print(f"[Vision] Erro: {response.status_code} - {response.text}")
+                logger.error(f"[Vision] Erro: {response.status_code} - {response.text}")
                 return self._resultado_imagem_erro()
 
         except Exception as e:
-            print(f"[Vision] Erro ao processar imagem base64: {e}")
+            logger.error(f"[Vision] Erro ao processar imagem base64: {e}")
             return self._resultado_imagem_erro()
 
     def _get_prompt_visao(self, caption: str = "") -> str:
@@ -451,7 +454,7 @@ IMPORTANTE: Se não entendeu ou precisa de mais informações, coloque entendeu:
             "valor": 0.0,
             "descricao": "Não foi possível ler a imagem",
             "categoria_sugerida": "Outros",
-            "data_transacao": datetime.now(),
+            "data_transacao": datetime.now(timezone.utc),
             "confianca": 0.0,
             "entendeu": False,
             "pergunta": "Não consegui ler a imagem. Pode me dizer o valor e o que foi?"
@@ -467,7 +470,7 @@ IMPORTANTE: Se não entendeu ou precisa de mais informações, coloque entendeu:
         Retorna lista de transações para registro em lote.
         """
         try:
-            print(f"[Vision Extrato] Processando extrato ({len(base64_data)} chars)")
+            logger.debug(f"[Vision Extrato] Processando extrato ({len(base64_data)} chars)")
 
             prompt = f"""Você é um especialista em analisar documentos financeiros.
 
@@ -550,20 +553,20 @@ Para documento fiscal, retorne transacoes vazio e preencha valor_total e descric
                 for t in resultado.get('transacoes', []):
                     if t.get('data'):
                         try:
-                            t['data_transacao'] = datetime.strptime(t['data'], "%Y-%m-%d")
+                            t['data_transacao'] = datetime.strptime(t['data'], "%Y-%m-%d").replace(tzinfo=timezone.utc)
                         except ValueError:
-                            t['data_transacao'] = datetime.now()
+                            t['data_transacao'] = datetime.now(timezone.utc)
                     else:
-                        t['data_transacao'] = datetime.now()
+                        t['data_transacao'] = datetime.now(timezone.utc)
 
-                print(f"[Vision Extrato] Extraídas {len(resultado.get('transacoes', []))} transações")
+                logger.info(f"[Vision Extrato] Extraídas {len(resultado.get('transacoes', []))} transações")
                 return resultado
             else:
-                print(f"[Vision Extrato] Erro: {response.status_code}")
+                logger.error(f"[Vision Extrato] Erro: {response.status_code}")
                 return {"tipo_documento": "erro", "transacoes": [], "observacoes": "Erro ao processar"}
 
         except Exception as e:
-            print(f"[Vision Extrato] Erro: {e}")
+            logger.error(f"[Vision Extrato] Erro: {e}")
             return {"tipo_documento": "erro", "transacoes": [], "observacoes": str(e)}
 
     async def extrair_de_pdf_base64(self, base64_data: str) -> Dict:
@@ -574,7 +577,7 @@ Para documento fiscal, retorne transacoes vazio e preencha valor_total e descric
         try:
             import fitz  # PyMuPDF
 
-            print(f"[PDF] Processando PDF ({len(base64_data)} chars)")
+            logger.debug(f"[PDF] Processando PDF ({len(base64_data)} chars)")
 
             # Decodifica base64 para bytes
             pdf_bytes = base64.b64decode(base64_data)
@@ -608,7 +611,7 @@ Para documento fiscal, retorne transacoes vazio e preencha valor_total e descric
 
             doc.close()
 
-            print(f"[PDF] Total de {len(todas_transacoes)} transações extraídas de {doc.page_count} páginas")
+            logger.info(f"[PDF] Total de {len(todas_transacoes)} transações extraídas de {doc.page_count} páginas")
 
             return {
                 **info_documento,
@@ -618,10 +621,10 @@ Para documento fiscal, retorne transacoes vazio e preencha valor_total e descric
             }
 
         except ImportError:
-            print("[PDF] PyMuPDF não instalado, usando fallback")
+            logger.warning("[PDF] PyMuPDF não instalado, usando fallback")
             return {"tipo_documento": "erro", "transacoes": [], "observacoes": "Suporte a PDF não disponível"}
         except Exception as e:
-            print(f"[PDF] Erro: {e}")
+            logger.error(f"[PDF] Erro: {e}")
             return {"tipo_documento": "erro", "transacoes": [], "observacoes": str(e)}
 
     # =========================================================================

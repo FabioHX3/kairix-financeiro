@@ -9,7 +9,7 @@ Três níveis de memória:
 
 import json
 import redis.asyncio as redis
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Any
 
 from backend.config import settings
@@ -69,7 +69,7 @@ class MemoryService:
 
         # Adiciona nova interação
         historico.append({
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "usuario": mensagem,
             "assistente": resposta,
             "dados": dados_extras or {}
@@ -115,7 +115,7 @@ class MemoryService:
         acao = {
             "tipo": tipo_acao,
             "dados": dados,
-            "criado_em": datetime.utcnow().isoformat()
+            "criado_em": datetime.now(timezone.utc).isoformat()
         }
 
         await r.setex(key, ttl or self.TTL_CONFIRMACAO, json.dumps(acao))
@@ -165,7 +165,7 @@ class MemoryService:
                 p["categoria_id"] = categoria_id
                 p["tipo"] = tipo
                 p["ocorrencias"] = p.get("ocorrencias", 0) + 1
-                p["ultima_vez"] = datetime.utcnow().isoformat()
+                p["ultima_vez"] = datetime.now(timezone.utc).isoformat()
                 encontrado = True
                 break
 
@@ -176,8 +176,8 @@ class MemoryService:
                 "categoria_id": categoria_id,
                 "tipo": tipo,
                 "ocorrencias": 1,
-                "criado_em": datetime.utcnow().isoformat(),
-                "ultima_vez": datetime.utcnow().isoformat()
+                "criado_em": datetime.now(timezone.utc).isoformat(),
+                "ultima_vez": datetime.now(timezone.utc).isoformat()
             })
 
         await r.setex(key, self.TTL_MEDIA, json.dumps(padroes))

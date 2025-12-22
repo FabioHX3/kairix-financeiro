@@ -1,5 +1,8 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+
+logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -23,14 +26,14 @@ from backend.routes import (
 async def lifespan(app: FastAPI):
     """Gerencia ciclo de vida da aplicacao."""
     # Startup
-    print("[*] Kairix Financeiro API iniciando...")
-    print("[*] Jobs agendados são executados pelo worker arq separado")
-    print("[*] Para iniciar o worker: arq backend.worker.WorkerSettings")
+    logger.info("Kairix Financeiro API iniciando...")
+    logger.info("Jobs agendados são executados pelo worker arq separado")
+    logger.info("Para iniciar o worker: arq backend.worker.WorkerSettings")
 
     yield
 
     # Shutdown
-    print("[*] Kairix Financeiro API encerrando...")
+    logger.info("Kairix Financeiro API encerrando...")
 
 app = FastAPI(
     title="Kairix Financeiro API",
@@ -123,7 +126,7 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
 
-    print(f"[*] Iniciando Kairix Financeiro API em http://{settings.HOST}:{settings.PORT}")
+    logger.info(f"Iniciando Kairix Financeiro API em http://{settings.HOST}:{settings.PORT}")
 
     uvicorn.run(
         "backend.main:app",

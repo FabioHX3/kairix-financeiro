@@ -3,10 +3,13 @@ Webhook do WhatsApp - Processa mensagens com Sistema Multi-Agente
 Compatível com UAZAPI
 """
 
+import logging
 import re
 from fastapi import APIRouter, Depends, Request, BackgroundTasks
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict
 
 from backend.core.database import get_db
@@ -190,7 +193,7 @@ async def webhook_whatsapp(
 
     try:
         payload = await request.json()
-        print(f"[Webhook] Payload recebido: {payload}")
+        logger.debug(f"[Webhook] Payload recebido: {payload}")
 
         # UAZAPI envia com EventType
         event_type = payload.get("EventType", "") or payload.get("event", "")
@@ -212,7 +215,7 @@ async def webhook_whatsapp(
         from_number = extrair_numero(chatid)
 
         if not from_number:
-            print("[Webhook] Número não encontrado no payload")
+            logger.warning("[Webhook] Número não encontrado no payload")
             return {"status": "error", "reason": "number not found"}
 
         # Busca usuário
@@ -241,7 +244,7 @@ async def webhook_whatsapp(
                 usuario = db.query(Usuario).filter(Usuario.id == membro_familia.usuario_id).first()
 
         if not usuario:
-            print(f"[Webhook] Usuário não encontrado: {from_number}")
+            logger.warning(f"[Webhook] Usuário não encontrado: {from_number}")
             background_tasks.add_task(
                 _enviar_mensagem_nao_cadastrado,
                 from_number
@@ -275,7 +278,7 @@ async def webhook_whatsapp(
         message_type = message.get("messageType", "") or message.get("type", "text")
         message_type = message_type.lower()
 
-        print(f"[Webhook] Tipo: {message_type}, Texto: {message.get('text', '')[:50]}")
+        logger.debug(f"[Webhook] Tipo: {message_type}, Texto: {message.get('text', '')[:50]}")
 
         # ============================================================
         # PROCESSAMENTO POR TIPO DE MENSAGEM
@@ -335,7 +338,7 @@ async def webhook_whatsapp(
             arquivo_url = message.get("fileURL", "") or message.get("url", "")
             message_id = message.get("messageid", "")
 
-            print(f"[Webhook] Áudio recebido - URL: {arquivo_url[:60] if arquivo_url else 'N/A'}...")
+            logger.debug(f"[Webhook] Áudio recebido - URL: {arquivo_url[:60] if arquivo_url else 'N/A'}...")
 
             texto = ""
             sucesso = False
@@ -347,12 +350,12 @@ async def webhook_whatsapp(
                 if midia_result.get("success") and midia_result.get("data", {}).get("base64Data"):
                     base64_data = midia_result["data"]["base64Data"]
                     mimetype = midia_result["data"].get("mimetype", "audio/ogg")
-                    print(f"[Webhook] Áudio descriptografado ({mimetype}, {len(base64_data)} chars)")
+                    logger.debug(f"[Webhook] Áudio descriptografado ({mimetype}, {len(base64_data)} chars)")
                     texto, sucesso = await llm_service.transcrever_audio_base64(base64_data, mimetype)
 
             # Fallback: URL direta
             if not sucesso and arquivo_url:
-                print(f"[Webhook] Fallback para URL direta do áudio")
+                logger.debug(f"[Webhook] Fallback para URL direta do áudio")
                 texto, sucesso = await llm_service.transcrever_audio(arquivo_url)
 
             if sucesso and texto:
@@ -395,7 +398,7 @@ async def webhook_whatsapp(
                 arquivo_url = message.get("fileURL", "") or message.get("url", "")
                 caption = message.get("text", "") or message.get("caption", "")
             mensagem_original = caption
-            print(f"[Webhook] Imagem URL: {arquivo_url[:80] if arquivo_url else 'VAZIA'}...")
+            logger.debug(f"[Webhook] Imagem URL: {arquivo_url[:80] if arquivo_url else 'VAZIA'}...")
 
             # Tenta baixar mídia descriptografada
             message_id = message.get("messageid", "")
@@ -407,7 +410,7 @@ async def webhook_whatsapp(
                 if midia_result.get("success") and midia_result.get("data", {}).get("base64Data"):
                     base64_data = midia_result["data"]["base64Data"]
                     mimetype = midia_result["data"].get("mimetype", "image/jpeg")
-                    print(f"[Webhook] Mídia descriptografada ({len(base64_data)} chars)")
+                    logger.debug(f"[Webhook] Mídia descriptografada ({len(base64_data)} chars)")
 
             # Fallback: URL direta
             if not base64_data and arquivo_url:
@@ -419,15 +422,15 @@ async def webhook_whatsapp(
                     if resp.status_code == 200:
                         base64_data = b64.b64encode(resp.content).decode('utf-8')
                         mimetype = resp.headers.get('content-type', 'image/jpeg')
-                        print(f"[Webhook] Imagem baixada via URL ({len(base64_data)} chars)")
+                        logger.debug(f"[Webhook] Imagem baixada via URL ({len(base64_data)} chars)")
                 except Exception as e:
-                    print(f"[Webhook] Erro ao baixar imagem: {e}")
+                    logger.error(f"[Webhook] Erro ao baixar imagem: {e}")
 
             if base64_data:
                 # Analisa o documento
                 dados_doc = await llm_service.extrair_extrato_multiplo(base64_data, mimetype, caption)
                 tipo_doc = dados_doc.get('tipo_documento', 'outro')
-                print(f"[Webhook] Tipo documento: {tipo_doc}")
+                logger.debug(f"[Webhook] Tipo documento: {tipo_doc}")
 
                 # DOCUMENTO FISCAL
                 if tipo_doc == 'documento_fiscal':
@@ -437,7 +440,7 @@ async def webhook_whatsapp(
 
                 # EXTRATO/FATURA
                 elif tipo_doc in ['extrato_bancario', 'fatura_cartao'] and dados_doc.get('transacoes') and len(dados_doc['transacoes']) > 1:
-                    print(f"[Webhook] Extrato: {len(dados_doc['transacoes'])} transações")
+                    logger.info(f"[Webhook] Extrato: {len(dados_doc['transacoes'])} transações")
 
                     transacoes_salvas = await _salvar_multiplas_transacoes(
                         db=db,
@@ -465,7 +468,7 @@ async def webhook_whatsapp(
                 # COMPROVANTE ou transação única
                 else:
                     dados_imagem = await llm_service.extrair_de_imagem_base64(base64_data, mimetype, caption)
-                    print(f"[Webhook] Dados extraídos: {dados_imagem}")
+                    logger.debug(f"[Webhook] Dados extraídos: {dados_imagem}")
 
                     if dados_imagem.get("entendeu") and dados_imagem.get("valor", 0) > 0:
                         # Salva transação
@@ -516,13 +519,13 @@ async def webhook_whatsapp(
             filename = message.get("filename", "") or message.get("content", {}).get("filename", "")
 
             if filename.lower().endswith('.pdf'):
-                print(f"[Webhook] PDF recebido: {filename}")
+                logger.info(f"[Webhook] PDF recebido: {filename}")
 
                 midia_result = await whatsapp_service.baixar_midia(message_id, return_base64=True)
 
                 if midia_result.get("success") and midia_result.get("data", {}).get("base64Data"):
                     base64_data = midia_result["data"]["base64Data"]
-                    print(f"[Webhook] PDF descriptografado ({len(base64_data)} chars)")
+                    logger.debug(f"[Webhook] PDF descriptografado ({len(base64_data)} chars)")
 
                     dados_pdf = await llm_service.extrair_de_pdf_base64(base64_data)
 
@@ -572,13 +575,11 @@ async def webhook_whatsapp(
                 return {"status": "unsupported_document"}
 
         else:
-            print(f"[Webhook] Tipo não suportado: {message_type}")
+            logger.warning(f"[Webhook] Tipo não suportado: {message_type}")
             return {"status": "unsupported_message_type", "type": message_type}
 
     except Exception as e:
-        print(f"[Webhook] Erro: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"[Webhook] Erro: {e}", exc_info=True)
         return {"status": "error", "error": str(e)}
 
 
@@ -654,11 +655,11 @@ async def _processar_confirmacao_documento_fiscal(
     # Data da transação
     if data_venc:
         try:
-            data_transacao = datetime.strptime(data_venc[:10], '%Y-%m-%d')
-        except:
-            data_transacao = datetime.now()
+            data_transacao = datetime.strptime(data_venc[:10], '%Y-%m-%d').replace(tzinfo=timezone.utc)
+        except ValueError:
+            data_transacao = datetime.now(timezone.utc)
     else:
-        data_transacao = datetime.now()
+        data_transacao = datetime.now(timezone.utc)
 
     # Busca categoria "Impostos" ou "Outros"
     categoria = None
@@ -693,7 +694,7 @@ async def _processar_confirmacao_documento_fiscal(
     db.commit()
     db.refresh(transacao)
 
-    print(f"[Webhook] Documento fiscal salvo: ID={transacao.id}, Código={codigo}, R${valor:.2f}")
+    logger.info(f"[Webhook] Documento fiscal salvo: ID={transacao.id}, Código={codigo}, R${valor:.2f}")
 
     # Limpa contexto
     await memory_service.limpar_acao_pendente(from_number)
@@ -750,11 +751,11 @@ async def _salvar_transacao_de_imagem(
             data_str = dados_imagem.get('data_documento', '')
             if data_str:
                 try:
-                    data_transacao = datetime.strptime(data_str, "%Y-%m-%d")
-                except:
-                    data_transacao = datetime.now()
+                    data_transacao = datetime.strptime(data_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                except ValueError:
+                    data_transacao = datetime.now(timezone.utc)
             else:
-                data_transacao = datetime.now()
+                data_transacao = datetime.now(timezone.utc)
 
         codigo = gerar_codigo_unico(db)
 
@@ -782,7 +783,7 @@ async def _salvar_transacao_de_imagem(
         db.commit()
         db.refresh(transacao)
 
-        print(f"[Webhook] Transação de imagem salva: ID={transacao.id}, Código={codigo}")
+        logger.info(f"[Webhook] Transação de imagem salva: ID={transacao.id}, Código={codigo}")
 
         return {
             "id": transacao.id,
@@ -793,7 +794,7 @@ async def _salvar_transacao_de_imagem(
         }
 
     except Exception as e:
-        print(f"[Webhook] Erro ao salvar transação de imagem: {e}")
+        logger.error(f"[Webhook] Erro ao salvar transação de imagem: {e}")
         db.rollback()
         return None
 
@@ -831,11 +832,11 @@ async def _salvar_multiplas_transacoes(
                 data_str = t.get('data', '')
                 if isinstance(data_str, str) and data_str:
                     try:
-                        data_transacao = datetime.strptime(data_str, "%Y-%m-%d")
-                    except:
-                        data_transacao = datetime.now()
+                        data_transacao = datetime.strptime(data_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                    except ValueError:
+                        data_transacao = datetime.now(timezone.utc)
                 else:
-                    data_transacao = datetime.now()
+                    data_transacao = datetime.now(timezone.utc)
 
             codigo = gerar_codigo_unico(db)
 
@@ -867,11 +868,11 @@ async def _salvar_multiplas_transacoes(
             })
 
         except Exception as e:
-            print(f"[Webhook] Erro ao salvar transação: {e}")
+            logger.error(f"[Webhook] Erro ao salvar transação: {e}")
             continue
 
     db.commit()
-    print(f"[Webhook] {len(transacoes_salvas)} transações salvas")
+    logger.info(f"[Webhook] {len(transacoes_salvas)} transações salvas")
     return transacoes_salvas
 
 
@@ -911,7 +912,7 @@ async def _excluir_transacao_por_codigo(
         f"✓ Transação excluída!\n\n{tipo_emoji} R$ {valor:,.2f}\n📝 {descricao}\nCódigo: {codigo}"
     )
 
-    print(f"[Webhook] Transação {codigo} excluída")
+    logger.info(f"[Webhook] Transação {codigo} excluída")
     return {"status": "deleted", "codigo": codigo}
 
 
@@ -957,5 +958,5 @@ async def teste_webhook(usuario: Usuario = Depends(obter_usuario_atual)):
     return {
         "status": "ok",
         "message": "Webhook funcionando!",
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }

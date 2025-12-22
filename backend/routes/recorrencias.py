@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from backend.core.database import get_db
@@ -253,7 +253,7 @@ async def atualizar_recorrencia(
     if dados.auto_confirmar is not None:
         recorrencia.auto_confirmar = dados.auto_confirmar
 
-    recorrencia.atualizado_em = datetime.utcnow()
+    recorrencia.atualizado_em = datetime.now(timezone.utc)
     db.commit()
 
     # Busca para retornar formatado

@@ -10,7 +10,7 @@ Responsabilidades:
 """
 
 from typing import Dict, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 
@@ -76,9 +76,9 @@ class ConsultantAgent(BaseAgent):
         from backend.models import Transacao, TipoTransacao
 
         if mes is None:
-            mes = datetime.utcnow().month
+            mes = datetime.now(timezone.utc).month
         if ano is None:
-            ano = datetime.utcnow().year
+            ano = datetime.now(timezone.utc).year
 
         # Query base
         query = db.query(
@@ -134,9 +134,9 @@ class ConsultantAgent(BaseAgent):
         from backend.models import Transacao, Categoria, TipoTransacao
 
         if mes is None:
-            mes = datetime.utcnow().month
+            mes = datetime.now(timezone.utc).month
         if ano is None:
-            ano = datetime.utcnow().year
+            ano = datetime.now(timezone.utc).year
 
         tipo_enum = TipoTransacao.DESPESA if tipo == "despesa" else TipoTransacao.RECEITA
 
@@ -223,7 +223,7 @@ class ConsultantAgent(BaseAgent):
         Returns:
             Dict com dados de ambos os meses e variacao
         """
-        hoje = datetime.utcnow()
+        hoje = datetime.now(timezone.utc)
         mes_atual = hoje.month
         ano_atual = hoje.year
 

@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from backend.core.database import get_db
 from backend.core.security import obter_usuario_atual
@@ -269,5 +269,5 @@ async def executar_verificacao_agora(
         "sucesso": True,
         "alertas_enviados": len(resultado["alertas"]),
         "alertas": resultado["alertas"],
-        "executado_em": datetime.now().isoformat()
+        "executado_em": datetime.now(timezone.utc).isoformat()
     }

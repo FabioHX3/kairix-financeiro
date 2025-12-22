@@ -3,9 +3,12 @@ Serviço de WhatsApp para envio de mensagens
 Compatível com UAZAPI
 """
 
+import logging
 import httpx
 from typing import Optional
 from backend.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class WhatsAppService:
@@ -51,7 +54,7 @@ class WhatsAppService:
             dict com resultado da API
         """
         if not self.base_url or not self.api_key:
-            print("[WhatsApp] API não configurada")
+            logger.warning("[WhatsApp] API não configurada")
             return {"success": False, "error": "API não configurada"}
 
         numero_limpo = self._formatar_numero(numero)
@@ -77,16 +80,16 @@ class WhatsAppService:
                 )
 
                 if response.status_code in [200, 201]:
-                    print(f"[WhatsApp] Mensagem enviada para {numero_limpo}")
+                    logger.info(f"[WhatsApp] Mensagem enviada para {numero_limpo}")
                     return {"success": True, "data": response.json()}
                 else:
-                    print(f"[WhatsApp] Erro: {response.status_code} - {response.text}")
+                    logger.error(f"[WhatsApp] Erro: {response.status_code} - {response.text}")
                     return {"success": False, "error": response.text}
 
         except Exception as e:
             import traceback
-            print(f"[WhatsApp] Erro ao enviar: {type(e).__name__}: {e}")
-            print(f"[WhatsApp] Traceback: {traceback.format_exc()}")
+            logger.error(f"[WhatsApp] Erro ao enviar: {type(e).__name__}: {e}")
+            logger.debug(f"[WhatsApp] Traceback: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}
 
     async def enviar_imagem(
@@ -193,14 +196,14 @@ class WhatsAppService:
 
                 if response.status_code == 200:
                     data = response.json()
-                    print(f"[WhatsApp] Mídia baixada: {data.get('fileURL', 'N/A')[:50]}...")
+                    logger.debug(f"[WhatsApp] Mídia baixada: {data.get('fileURL', 'N/A')[:50]}...")
                     return {"success": True, "data": data}
                 else:
-                    print(f"[WhatsApp] Erro ao baixar mídia: {response.status_code} - {response.text[:200]}")
+                    logger.error(f"[WhatsApp] Erro ao baixar mídia: {response.status_code} - {response.text[:200]}")
                     return {"success": False, "error": response.text}
 
         except Exception as e:
-            print(f"[WhatsApp] Erro ao baixar mídia: {e}")
+            logger.error(f"[WhatsApp] Erro ao baixar mídia: {e}")
             return {"success": False, "error": str(e)}
 
     async def verificar_conexao(self) -> dict:

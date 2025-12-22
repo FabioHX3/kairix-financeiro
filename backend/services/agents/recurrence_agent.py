@@ -10,7 +10,7 @@ Responsabilidades:
 
 import unicodedata
 from typing import Optional, Dict, List, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -93,7 +93,7 @@ class RecurrenceAgent(BaseAgent):
         """
         from backend.models import Transacao, TipoTransacao
 
-        data_inicio = datetime.utcnow() - timedelta(days=dias)
+        data_inicio = datetime.now(timezone.utc) - timedelta(days=dias)
 
         # Busca transacoes do periodo
         transacoes = db.query(Transacao).filter(
@@ -346,7 +346,7 @@ class RecurrenceAgent(BaseAgent):
             existente.ultima_ocorrencia = dados.get("ultima_ocorrencia")
             existente.proxima_esperada = dados.get("proxima_esperada")
             existente.confianca_deteccao = dados["confianca"]
-            existente.atualizado_em = datetime.utcnow()
+            existente.atualizado_em = datetime.now(timezone.utc)
 
             db.commit()
 
@@ -446,9 +446,9 @@ class RecurrenceAgent(BaseAgent):
         from backend.models import RecurringTransaction, StatusRecorrencia, TipoTransacao
 
         if mes is None:
-            mes = datetime.utcnow().month
+            mes = datetime.now(timezone.utc).month
         if ano is None:
-            ano = datetime.utcnow().year
+            ano = datetime.now(timezone.utc).year
 
         # Busca recorrencias ativas
         recorrencias = db.query(RecurringTransaction).filter(

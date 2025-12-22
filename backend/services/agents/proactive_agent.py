@@ -9,7 +9,7 @@ Responsabilidades:
 """
 
 from typing import Dict, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract, and_
 
@@ -74,7 +74,7 @@ class ProactiveAgent(BaseAgent):
         """
         from backend.models import ScheduledBill, StatusConta
 
-        hoje = datetime.utcnow().date()
+        hoje = datetime.now(timezone.utc).date()
         data_limite = hoje + timedelta(days=dias_antecedencia)
 
         contas = db.query(ScheduledBill).filter(
@@ -115,7 +115,7 @@ class ProactiveAgent(BaseAgent):
         """
         from backend.models import ScheduledBill, StatusConta
 
-        hoje = datetime.utcnow().date()
+        hoje = datetime.now(timezone.utc).date()
 
         contas = db.query(ScheduledBill).filter(
             ScheduledBill.usuario_id == usuario_id,
@@ -235,7 +235,7 @@ class ProactiveAgent(BaseAgent):
         """
         from backend.models import Transacao, Categoria, TipoTransacao
 
-        hoje = datetime.utcnow()
+        hoje = datetime.now(timezone.utc)
         mes_atual = hoje.month
         ano_atual = hoje.year
 
@@ -357,7 +357,7 @@ class ProactiveAgent(BaseAgent):
         """
         from backend.models import Transacao, Categoria, TipoTransacao
 
-        ontem = datetime.utcnow().date() - timedelta(days=1)
+        ontem = datetime.now(timezone.utc).date() - timedelta(days=1)
 
         transacoes = db.query(Transacao).filter(
             Transacao.usuario_id == usuario_id,
@@ -400,7 +400,7 @@ class ProactiveAgent(BaseAgent):
         """
         from backend.models import Transacao, Categoria, TipoTransacao
 
-        hoje = datetime.utcnow().date()
+        hoje = datetime.now(timezone.utc).date()
         # Semana anterior (segunda a domingo)
         dias_desde_segunda = hoje.weekday()
         fim_semana = hoje - timedelta(days=dias_desde_segunda + 1)  # Domingo passado
@@ -460,7 +460,7 @@ class ProactiveAgent(BaseAgent):
         from backend.models import Transacao, Categoria, TipoTransacao
         from backend.services.agents.consultant_agent import consultant_agent
 
-        hoje = datetime.utcnow()
+        hoje = datetime.now(timezone.utc)
 
         # Mes anterior
         if hoje.month == 1:

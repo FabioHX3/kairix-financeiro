@@ -8,7 +8,7 @@ Responsabilidades:
 """
 
 from typing import Dict
-from datetime import datetime
+from datetime import datetime, timezone
 
 from backend.services.agents.base_agent import (
     BaseAgent,
@@ -109,7 +109,7 @@ class PersonalityAgent(BaseAgent):
 
     def obter_saudacao(self, personalidade: str = "amigavel") -> str:
         """Retorna saudação apropriada para hora e personalidade"""
-        hora = datetime.now().hour
+        hora = datetime.now(timezone.utc).hour
 
         if hora < 12:
             periodo = "manha"

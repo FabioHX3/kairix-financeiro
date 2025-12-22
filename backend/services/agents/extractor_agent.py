@@ -10,7 +10,7 @@ Responsabilidades:
 
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, List
 
 from langchain_openai import ChatOpenAI
@@ -451,7 +451,7 @@ Categorias receita: {', '.join(self.CATEGORIAS_RECEITA)}"""
                 tipo=tipo,
                 valor=dados["valor"],
                 descricao=dados.get("descricao", ""),
-                data_transacao=datetime.strptime(dados.get("data", datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d"),
+                data_transacao=datetime.strptime(dados.get("data", datetime.now(timezone.utc).strftime("%Y-%m-%d")), "%Y-%m-%d").replace(tzinfo=timezone.utc),
                 origem=origem,
                 mensagem_original=context.mensagem_original,
                 confianca_ia=dados.get("confianca", 0.0)

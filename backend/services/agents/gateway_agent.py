@@ -10,7 +10,7 @@ Responsabilidades:
 
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict
 
 from langchain_openai import ChatOpenAI
@@ -993,7 +993,7 @@ Responda APENAS com a categoria (ex: REGISTRAR)"""
                 tipo=tipo,
                 valor=dados.get("valor", 0),
                 descricao=dados.get("descricao", ""),
-                data_transacao=datetime.strptime(dados.get("data", datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d"),
+                data_transacao=datetime.strptime(dados.get("data", datetime.now(timezone.utc).strftime("%Y-%m-%d")), "%Y-%m-%d").replace(tzinfo=timezone.utc),
                 origem=origem,
                 mensagem_original=context.mensagem_original,
                 confianca_ia=dados.get("confianca", 0.0)

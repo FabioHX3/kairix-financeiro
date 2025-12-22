@@ -15,7 +15,7 @@ Para rodar com hot-reload (dev):
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -72,7 +72,7 @@ async def job_verificacao_diaria(ctx: dict) -> dict:
     from backend.services.agents.proactive_agent import proactive_agent
     from backend.services.whatsapp import whatsapp_service
 
-    logger.info(f"[Worker] Iniciando verificação diária - {datetime.now()}")
+    logger.info(f"[Worker] Iniciando verificação diária - {datetime.now(SAO_PAULO_TZ)}")
 
     db = get_db()
     resultados = {"usuarios_processados": 0, "alertas_enviados": 0, "erros": 0}
@@ -121,7 +121,7 @@ async def job_verificacao_semanal(ctx: dict) -> dict:
     from backend.services.agents.proactive_agent import proactive_agent
     from backend.services.whatsapp import whatsapp_service
 
-    logger.info(f"[Worker] Iniciando verificação semanal - {datetime.now()}")
+    logger.info(f"[Worker] Iniciando verificação semanal - {datetime.now(SAO_PAULO_TZ)}")
 
     db = get_db()
     resultados = {"usuarios_processados": 0, "resumos_enviados": 0, "erros": 0}
@@ -168,7 +168,7 @@ async def job_verificacao_mensal(ctx: dict) -> dict:
     from backend.services.agents.proactive_agent import proactive_agent
     from backend.services.whatsapp import whatsapp_service
 
-    logger.info(f"[Worker] Iniciando verificação mensal - {datetime.now()}")
+    logger.info(f"[Worker] Iniciando verificação mensal - {datetime.now(SAO_PAULO_TZ)}")
 
     db = get_db()
     resultados = {"usuarios_processados": 0, "resumos_enviados": 0, "erros": 0}

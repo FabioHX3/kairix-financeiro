@@ -10,7 +10,7 @@ Responsabilidades:
 
 import unicodedata
 from typing import Optional, Dict, List
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from backend.services.agents.base_agent import (
@@ -133,7 +133,7 @@ class LearningAgent(BaseAgent):
                 self.CONFIANCA_MAX
             )
             padrao_existente.confianca = nova_confianca
-            padrao_existente.atualizado_em = datetime.utcnow()
+            padrao_existente.atualizado_em = datetime.now(timezone.utc)
 
             db.commit()
 
@@ -370,7 +370,7 @@ class LearningAgent(BaseAgent):
 
                 setattr(prefs, campo, valor)
 
-        prefs.atualizado_em = datetime.utcnow()
+        prefs.atualizado_em = datetime.now(timezone.utc)
         db.commit()
 
         self.log(f"Preferências atualizadas para usuário {usuario_id}")

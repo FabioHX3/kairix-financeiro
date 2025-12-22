@@ -4,8 +4,11 @@ Processor - Ponto de entrada para processar mensagens com o novo sistema de agen
 Esta função pode ser usada no lugar do agente antigo gradualmente.
 """
 
+import logging
 from typing import Optional, Dict
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
 
 from backend.services.agents.base_agent import (
@@ -84,7 +87,7 @@ async def processar_mensagem_v2(
         return response
 
     except Exception as e:
-        print(f"[Processor] Erro: {e}")
+        logger.error(f"[Processor] Erro: {e}")
         return AgentResponse(
             sucesso=False,
             mensagem="Desculpe, tive um problema. Pode repetir?"
