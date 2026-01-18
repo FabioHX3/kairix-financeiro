@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 // Public paths that don't require authentication
-const publicPaths = ['/login', '/cadastro']
+const publicPaths = ['/login']
 
 // Static files and API routes to skip
 const skipPaths = ['/api', '/_next', '/assets', '/favicon.ico']

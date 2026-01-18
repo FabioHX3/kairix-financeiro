@@ -1,14 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import Image from 'next/image'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { useLogin } from '@/hooks/use-auth'
 import { loginSchema, type LoginFormData } from '@/lib/utils/validators'
@@ -113,14 +112,6 @@ export default function LoginPage() {
           </form>
         </Form>
       </CardContent>
-      <CardFooter className="flex flex-col space-y-4">
-        <div className="text-sm text-muted-foreground text-center">
-          Não tem uma conta?{' '}
-          <Link href="/cadastro" className="text-primary hover:underline font-medium">
-            Cadastre-se
-          </Link>
-        </div>
-      </CardFooter>
     </Card>
   )
 }

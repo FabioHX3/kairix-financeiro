@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import timedelta
+from pydantic import BaseModel, Field
+from typing import List, Optional
 
 from backend.config import settings
 from backend.core.database import get_db
@@ -17,13 +19,118 @@ from backend.schemas import (
     UsuarioAtualizar, UsuarioAlterarSenha, SystemLoginRequest
 )
 
+
+# ==================== Schemas de Erro ====================
+
+class ErrorDetail(BaseModel):
+    """Detalhe de erro de validação"""
+    loc: List[str] = Field(..., description="Localização do erro (campo)")
+    msg: str = Field(..., description="Mensagem de erro")
+    type: str = Field(..., description="Tipo do erro")
+
+
+class ValidationErrorResponse(BaseModel):
+    """Resposta de erro de validação (422)"""
+    detail: List[ErrorDetail] = Field(..., description="Lista de erros de validação")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "detail": [
+                    {
+                        "loc": ["body", "email"],
+                        "msg": "value is not a valid email address",
+                        "type": "value_error.email"
+                    }
+                ]
+            }
+        }
+
+
+class HTTPErrorResponse(BaseModel):
+    """Resposta de erro HTTP padrão"""
+    detail: str = Field(..., description="Mensagem de erro")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "detail": "Email já cadastrado"
+            }
+        }
+
+
 router = APIRouter(prefix="/api/auth", tags=["Autenticação"])
 
 
-@router.post("/cadastro", response_model=UsuarioResposta, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/cadastro",
+    response_model=UsuarioResposta,
+    status_code=status.HTTP_201_CREATED,
+    summary="Cadastrar novo usuário",
+    responses={
+        201: {
+            "description": "Usuário cadastrado com sucesso",
+            "model": UsuarioResposta
+        },
+        400: {
+            "description": "Dados inválidos ou usuário já existe",
+            "model": HTTPErrorResponse,
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "email_duplicado": {
+                            "summary": "Email já cadastrado",
+                            "value": {"detail": "Email já cadastrado"}
+                        },
+                        "whatsapp_duplicado": {
+                            "summary": "WhatsApp já cadastrado",
+                            "value": {"detail": "WhatsApp já cadastrado"}
+                        }
+                    }
+                }
+            }
+        },
+        422: {
+            "description": "Erro de validação dos dados",
+            "model": ValidationErrorResponse
+        }
+    }
+)
 def cadastrar_usuario(usuario: UsuarioCriar, db: Session = Depends(get_db)):
-    """Cadastra um novo usuário"""
+    """
+    Cadastra um novo usuário no sistema.
 
+    ## Campos obrigatórios
+    - **nome**: Nome completo (2-100 caracteres)
+    - **email**: Email válido (será usado para login)
+    - **senha**: Senha com no mínimo 6 caracteres
+
+    ## Campos opcionais
+    - **telefone**: Telefone com DDD (10-15 dígitos, apenas números)
+    - **whatsapp**: WhatsApp com DDD (necessário para usar o bot)
+
+    ## Validações
+    - Email deve ser único no sistema
+    - WhatsApp deve ser único no sistema (se informado)
+    - Telefone e WhatsApp são limpos automaticamente (apenas números)
+
+    ## Exemplo de uso (curl)
+    ```bash
+    curl -X POST "https://api.financeiro.kairix.com.br/api/auth/cadastro" \\
+         -H "Content-Type: application/json" \\
+         -d '{
+           "nome": "João da Silva",
+           "email": "joao@email.com",
+           "senha": "senha123",
+           "whatsapp": "11999998888"
+         }'
+    ```
+
+    ## Retorno
+    Retorna os dados do usuário criado (sem a senha).
+    """
+
+    # Verifica email duplicado
     usuario_existente = db.query(Usuario).filter(Usuario.email == usuario.email).first()
     if usuario_existente:
         raise HTTPException(
@@ -31,6 +138,7 @@ def cadastrar_usuario(usuario: UsuarioCriar, db: Session = Depends(get_db)):
             detail="Email já cadastrado"
         )
 
+    # Verifica WhatsApp duplicado
     if usuario.whatsapp:
         whatsapp_existente = db.query(Usuario).filter(
             Usuario.whatsapp == usuario.whatsapp
@@ -41,6 +149,7 @@ def cadastrar_usuario(usuario: UsuarioCriar, db: Session = Depends(get_db)):
                 detail="WhatsApp já cadastrado"
             )
 
+    # Cria o usuário
     novo_usuario = Usuario(
         nome=usuario.nome,
         email=usuario.email,

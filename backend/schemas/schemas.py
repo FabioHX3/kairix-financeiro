@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from datetime import datetime
 from typing import Optional, List
+import re
 
 from backend.models.models import TipoTransacao, StatusTransacao, OrigemRegistro
 
@@ -8,35 +9,140 @@ from backend.models.models import TipoTransacao, StatusTransacao, OrigemRegistro
 # ==================== Usuario ====================
 
 class UsuarioBase(BaseModel):
-    nome: str
-    email: EmailStr
-    telefone: Optional[str] = None
-    whatsapp: Optional[str] = None
+    """Schema base para usuário"""
+    nome: str = Field(
+        ...,
+        min_length=2,
+        max_length=100,
+        description="Nome completo do usuário",
+        json_schema_extra={"example": "João da Silva"}
+    )
+    email: EmailStr = Field(
+        ...,
+        description="Email do usuário (usado para login)",
+        json_schema_extra={"example": "joao@email.com"}
+    )
+    telefone: Optional[str] = Field(
+        None,
+        min_length=10,
+        max_length=15,
+        description="Telefone com DDD (apenas números)",
+        json_schema_extra={"example": "11999998888"}
+    )
+    whatsapp: Optional[str] = Field(
+        None,
+        min_length=10,
+        max_length=15,
+        description="WhatsApp com DDD (apenas números) - usado para integração com bot",
+        json_schema_extra={"example": "11999998888"}
+    )
+
+    @field_validator('telefone', 'whatsapp', mode='before')
+    @classmethod
+    def limpar_telefone(cls, v):
+        if v is None:
+            return v
+        # Remove tudo que não é número
+        numeros = re.sub(r'\D', '', str(v))
+        if numeros and (len(numeros) < 10 or len(numeros) > 15):
+            raise ValueError('Telefone deve ter entre 10 e 15 dígitos')
+        return numeros if numeros else None
 
 
 class UsuarioCriar(UsuarioBase):
-    senha: str
+    """
+    Schema para criação de novo usuário.
+
+    Use este endpoint para cadastrar novos usuários no sistema.
+    O WhatsApp é opcional, mas necessário para usar o bot de registro por mensagem.
+    """
+    senha: str = Field(
+        ...,
+        min_length=6,
+        max_length=100,
+        description="Senha do usuário (mínimo 6 caracteres)",
+        json_schema_extra={"example": "senha123"}
+    )
 
 
 class UsuarioAtualizar(BaseModel):
-    nome: Optional[str] = None
-    email: Optional[EmailStr] = None
-    telefone: Optional[str] = None
-    whatsapp: Optional[str] = None
+    """Schema para atualização de dados do usuário"""
+    nome: Optional[str] = Field(
+        None,
+        min_length=2,
+        max_length=100,
+        description="Nome completo do usuário"
+    )
+    email: Optional[EmailStr] = Field(
+        None,
+        description="Email do usuário"
+    )
+    telefone: Optional[str] = Field(
+        None,
+        min_length=10,
+        max_length=15,
+        description="Telefone com DDD (apenas números)"
+    )
+    whatsapp: Optional[str] = Field(
+        None,
+        min_length=10,
+        max_length=15,
+        description="WhatsApp com DDD (apenas números)"
+    )
+
+    @field_validator('telefone', 'whatsapp', mode='before')
+    @classmethod
+    def limpar_telefone(cls, v):
+        if v is None:
+            return v
+        numeros = re.sub(r'\D', '', str(v))
+        if numeros and (len(numeros) < 10 or len(numeros) > 15):
+            raise ValueError('Telefone deve ter entre 10 e 15 dígitos')
+        return numeros if numeros else None
 
 
 class UsuarioAlterarSenha(BaseModel):
-    senha_atual: str
-    senha_nova: str
+    """Schema para alteração de senha"""
+    senha_atual: str = Field(
+        ...,
+        description="Senha atual do usuário"
+    )
+    senha_nova: str = Field(
+        ...,
+        min_length=6,
+        max_length=100,
+        description="Nova senha (mínimo 6 caracteres)"
+    )
 
 
-class UsuarioResposta(UsuarioBase):
-    id: int
-    ativo: bool
-    criado_em: datetime
+class UsuarioResposta(BaseModel):
+    """
+    Schema de resposta com dados do usuário.
+
+    Retornado após cadastro, login ou consulta de dados.
+    Não inclui a senha por segurança.
+    """
+    id: int = Field(..., description="ID único do usuário")
+    nome: str = Field(..., description="Nome completo")
+    email: EmailStr = Field(..., description="Email do usuário")
+    telefone: Optional[str] = Field(None, description="Telefone com DDD")
+    whatsapp: Optional[str] = Field(None, description="WhatsApp com DDD")
+    ativo: bool = Field(..., description="Se o usuário está ativo no sistema")
+    criado_em: datetime = Field(..., description="Data de criação do cadastro")
 
     class Config:
         from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": 1,
+                "nome": "João da Silva",
+                "email": "joao@email.com",
+                "telefone": "11999998888",
+                "whatsapp": "11999998888",
+                "ativo": True,
+                "criado_em": "2025-01-18T10:00:00Z"
+            }
+        }
 
 
 # ==================== Auth ====================
