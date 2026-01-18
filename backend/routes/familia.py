@@ -18,24 +18,24 @@ async def criar_membro(
 ):
     """Adiciona um membro à família"""
 
-    telefone_limpo = ''.join(filter(str.isdigit, membro.telefone))
+    whatsapp_limpo = ''.join(filter(str.isdigit, membro.whatsapp))
 
     membro_existente = db.query(MembroFamilia).filter(
         MembroFamilia.usuario_id == usuario_atual.id,
-        MembroFamilia.telefone == telefone_limpo,
+        MembroFamilia.whatsapp == whatsapp_limpo,
         MembroFamilia.ativo == True
     ).first()
 
     if membro_existente:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Este telefone já está cadastrado na sua família"
+            detail="Este whatsapp já está cadastrado na sua família"
         )
 
     novo_membro = MembroFamilia(
         usuario_id=usuario_atual.id,
         nome=membro.nome,
-        telefone=telefone_limpo
+        whatsapp=whatsapp_limpo
     )
 
     db.add(novo_membro)
@@ -103,7 +103,7 @@ async def atualizar_membro(
         )
 
     for campo, valor in dados.model_dump(exclude_unset=True).items():
-        if campo == 'telefone' and valor:
+        if campo == 'whatsapp' and valor:
             valor = ''.join(filter(str.isdigit, valor))
         setattr(membro, campo, valor)
 

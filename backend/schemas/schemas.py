@@ -22,13 +22,6 @@ class UsuarioBase(BaseModel):
         description="Email do usuário (usado para login)",
         json_schema_extra={"example": "joao@email.com"}
     )
-    telefone: Optional[str] = Field(
-        None,
-        min_length=10,
-        max_length=15,
-        description="Telefone com DDD (apenas números)",
-        json_schema_extra={"example": "11999998888"}
-    )
     whatsapp: Optional[str] = Field(
         None,
         min_length=10,
@@ -37,15 +30,15 @@ class UsuarioBase(BaseModel):
         json_schema_extra={"example": "11999998888"}
     )
 
-    @field_validator('telefone', 'whatsapp', mode='before')
+    @field_validator('whatsapp', mode='before')
     @classmethod
-    def limpar_telefone(cls, v):
+    def limpar_whatsapp(cls, v):
         if v is None:
             return v
         # Remove tudo que não é número
         numeros = re.sub(r'\D', '', str(v))
         if numeros and (len(numeros) < 10 or len(numeros) > 15):
-            raise ValueError('Telefone deve ter entre 10 e 15 dígitos')
+            raise ValueError('WhatsApp deve ter entre 10 e 15 dígitos')
         return numeros if numeros else None
 
 
@@ -77,12 +70,6 @@ class UsuarioAtualizar(BaseModel):
         None,
         description="Email do usuário"
     )
-    telefone: Optional[str] = Field(
-        None,
-        min_length=10,
-        max_length=15,
-        description="Telefone com DDD (apenas números)"
-    )
     whatsapp: Optional[str] = Field(
         None,
         min_length=10,
@@ -90,14 +77,14 @@ class UsuarioAtualizar(BaseModel):
         description="WhatsApp com DDD (apenas números)"
     )
 
-    @field_validator('telefone', 'whatsapp', mode='before')
+    @field_validator('whatsapp', mode='before')
     @classmethod
-    def limpar_telefone(cls, v):
+    def limpar_whatsapp(cls, v):
         if v is None:
             return v
         numeros = re.sub(r'\D', '', str(v))
         if numeros and (len(numeros) < 10 or len(numeros) > 15):
-            raise ValueError('Telefone deve ter entre 10 e 15 dígitos')
+            raise ValueError('WhatsApp deve ter entre 10 e 15 dígitos')
         return numeros if numeros else None
 
 
@@ -125,7 +112,6 @@ class UsuarioResposta(BaseModel):
     id: int = Field(..., description="ID único do usuário")
     nome: str = Field(..., description="Nome completo")
     email: EmailStr = Field(..., description="Email do usuário")
-    telefone: Optional[str] = Field(None, description="Telefone com DDD")
     whatsapp: Optional[str] = Field(None, description="WhatsApp com DDD")
     ativo: bool = Field(..., description="Se o usuário está ativo no sistema")
     criado_em: datetime = Field(..., description="Data de criação do cadastro")
@@ -137,7 +123,6 @@ class UsuarioResposta(BaseModel):
                 "id": 1,
                 "nome": "João da Silva",
                 "email": "joao@email.com",
-                "telefone": "11999998888",
                 "whatsapp": "11999998888",
                 "ativo": True,
                 "criado_em": "2025-01-18T10:00:00Z"
@@ -169,8 +154,18 @@ class SystemLoginRequest(BaseModel):
 # ==================== Membro Familia ====================
 
 class MembroFamiliaBase(BaseModel):
-    nome: str
-    telefone: str
+    nome: str = Field(..., min_length=2, max_length=100, description="Nome do membro da família")
+    whatsapp: str = Field(..., min_length=10, max_length=15, description="WhatsApp do membro (apenas números)")
+
+    @field_validator('whatsapp', mode='before')
+    @classmethod
+    def limpar_whatsapp(cls, v):
+        if v is None:
+            return v
+        numeros = re.sub(r'\D', '', str(v))
+        if numeros and (len(numeros) < 10 or len(numeros) > 15):
+            raise ValueError('WhatsApp deve ter entre 10 e 15 dígitos')
+        return numeros if numeros else None
 
 
 class MembroFamiliaCriar(MembroFamiliaBase):
@@ -178,9 +173,19 @@ class MembroFamiliaCriar(MembroFamiliaBase):
 
 
 class MembroFamiliaAtualizar(BaseModel):
-    nome: Optional[str] = None
-    telefone: Optional[str] = None
+    nome: Optional[str] = Field(None, min_length=2, max_length=100)
+    whatsapp: Optional[str] = Field(None, min_length=10, max_length=15)
     ativo: Optional[bool] = None
+
+    @field_validator('whatsapp', mode='before')
+    @classmethod
+    def limpar_whatsapp(cls, v):
+        if v is None:
+            return v
+        numeros = re.sub(r'\D', '', str(v))
+        if numeros and (len(numeros) < 10 or len(numeros) > 15):
+            raise ValueError('WhatsApp deve ter entre 10 e 15 dígitos')
+        return numeros if numeros else None
 
 
 class MembroFamiliaResposta(MembroFamiliaBase):

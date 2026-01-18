@@ -222,19 +222,14 @@ async def webhook_whatsapp(
         variacoes = gerar_variacoes_numero(from_number)
 
         from sqlalchemy import or_
-        filtros_usuario = []
-        for var in variacoes:
-            filtros_usuario.extend([
-                Usuario.whatsapp == var,
-                Usuario.telefone == var
-            ])
+        filtros_usuario = [Usuario.whatsapp == var for var in variacoes]
 
         usuario = db.query(Usuario).filter(or_(*filtros_usuario)).first()
 
         membro_familia = None
 
         if not usuario:
-            filtros_membro = [MembroFamilia.telefone == var for var in variacoes]
+            filtros_membro = [MembroFamilia.whatsapp == var for var in variacoes]
             membro_familia = db.query(MembroFamilia).filter(
                 or_(*filtros_membro),
                 MembroFamilia.ativo == True

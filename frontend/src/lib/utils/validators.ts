@@ -14,7 +14,6 @@ export const registerSchema = z.object({
   email: z.string().email('Email inválido'),
   senha: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
   confirmarSenha: z.string(),
-  telefone: z.string().optional(),
   whatsapp: z.string().optional(),
 }).refine((data) => data.senha === data.confirmarSenha, {
   message: 'Senhas não conferem',
@@ -48,7 +47,6 @@ export type CategoryFormData = z.infer<typeof categorySchema>
 export const profileSchema = z.object({
   nome: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   email: z.string().email('Email inválido'),
-  telefone: z.string().optional(),
   whatsapp: z.string().optional(),
 })
 
@@ -69,7 +67,7 @@ export type ChangePasswordFormData = z.infer<typeof changePasswordSchema>
 // Family member schema
 export const familyMemberSchema = z.object({
   nome: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  telefone: z.string().min(10, 'Telefone inválido'),
+  whatsapp: z.string().min(10, 'WhatsApp inválido'),
 })
 
 export type FamilyMemberFormData = z.infer<typeof familyMemberSchema>

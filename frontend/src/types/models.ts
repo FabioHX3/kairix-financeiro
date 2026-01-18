@@ -13,7 +13,6 @@ export interface Usuario {
   id: number
   nome: string
   email: string
-  telefone?: string
   whatsapp?: string
   ativo: boolean
   criado_em: string
@@ -23,14 +22,12 @@ export interface UsuarioCriar {
   nome: string
   email: string
   senha: string
-  telefone?: string
   whatsapp?: string
 }
 
 export interface UsuarioAtualizar {
   nome?: string
   email?: string
-  telefone?: string
   whatsapp?: string
 }
 
@@ -159,19 +156,19 @@ export interface MembroFamilia {
   id: number
   usuario_id: number
   nome: string
-  telefone: string
+  whatsapp: string
   ativo: boolean
   criado_em: string
 }
 
 export interface MembroFamiliaCriar {
   nome: string
-  telefone: string
+  whatsapp: string
 }
 
 export interface MembroFamiliaAtualizar {
   nome?: string
-  telefone?: string
+  whatsapp?: string
 }
 
 // Preferences

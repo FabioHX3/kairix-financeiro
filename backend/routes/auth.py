@@ -106,13 +106,12 @@ def cadastrar_usuario(usuario: UsuarioCriar, db: Session = Depends(get_db)):
     - **senha**: Senha com no mínimo 6 caracteres
 
     ## Campos opcionais
-    - **telefone**: Telefone com DDD (10-15 dígitos, apenas números)
     - **whatsapp**: WhatsApp com DDD (necessário para usar o bot)
 
     ## Validações
     - Email deve ser único no sistema
     - WhatsApp deve ser único no sistema (se informado)
-    - Telefone e WhatsApp são limpos automaticamente (apenas números)
+    - WhatsApp é limpo automaticamente (apenas números)
 
     ## Exemplo de uso (curl)
     ```bash
@@ -154,7 +153,6 @@ def cadastrar_usuario(usuario: UsuarioCriar, db: Session = Depends(get_db)):
         nome=usuario.nome,
         email=usuario.email,
         senha_hash=gerar_hash_senha(usuario.senha),
-        telefone=usuario.telefone,
         whatsapp=usuario.whatsapp,
         ativo=True
     )
@@ -246,8 +244,6 @@ async def atualizar_meus_dados(
         usuario_atual.nome = dados.nome
     if dados.email is not None:
         usuario_atual.email = dados.email
-    if dados.telefone is not None:
-        usuario_atual.telefone = dados.telefone
     if dados.whatsapp is not None:
         usuario_atual.whatsapp = dados.whatsapp
 

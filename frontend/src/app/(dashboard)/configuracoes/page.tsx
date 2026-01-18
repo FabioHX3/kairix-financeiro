@@ -78,7 +78,6 @@ export default function ConfiguracoesPage() {
     defaultValues: {
       nome: user?.nome || '',
       email: user?.email || '',
-      telefone: user?.telefone || '',
       whatsapp: user?.whatsapp || '',
     },
   })
@@ -178,34 +177,22 @@ export default function ConfiguracoesPage() {
                       </FormItem>
                     )}
                   />
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <FormField
-                      control={profileForm.control}
-                      name="telefone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Telefone</FormLabel>
-                          <FormControl>
-                            <Input type="tel" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={profileForm.control}
-                      name="whatsapp"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>WhatsApp</FormLabel>
-                          <FormControl>
-                            <Input type="tel" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                  <FormField
+                    control={profileForm.control}
+                    name="whatsapp"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>WhatsApp</FormLabel>
+                        <FormControl>
+                          <Input type="tel" placeholder="11999998888" {...field} />
+                        </FormControl>
+                        <FormDescription>
+                          Usado para integração com o bot de registro
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <Button type="submit" disabled={updateProfileMutation.isPending}>
                     {updateProfileMutation.isPending ? (
                       <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando...</>
@@ -563,7 +550,7 @@ export default function ConfiguracoesPage() {
                         </div>
                         <div>
                           <p className="font-medium">{member.nome}</p>
-                          <p className="text-sm text-muted-foreground">{member.telefone}</p>
+                          <p className="text-sm text-muted-foreground">{member.whatsapp}</p>
                         </div>
                       </div>
                       <Button
