@@ -3,7 +3,7 @@
 
 services:
   postgres:
-    image: postgres:18-alpine
+    image: postgres:18
     container_name: kairix_postgres
     restart: unless-stopped
     environment:
