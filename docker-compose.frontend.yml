@@ -13,12 +13,12 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://kairix_backend:8014}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.financeiro.kairix.com.br}
     container_name: kairix_frontend
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://kairix_backend:8014}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.financeiro.kairix.com.br}
     ports:
       - "3014:3000"
     networks:
@@ -34,23 +34,23 @@ services:
       - "traefik.docker.network=proxy"
 
       # Roteamento HTTP (redireciona para HTTPS)
-      - "traefik.http.routers.kairix-app.rule=Host(`app.kairix.com.br`)"
-      - "traefik.http.routers.kairix-app.entrypoints=http"
-      - "traefik.http.routers.kairix-app.middlewares=redirect-to-https@docker"
+      - "traefik.http.routers.kairix-financeiro.rule=Host(`financeiro.kairix.com.br`)"
+      - "traefik.http.routers.kairix-financeiro.entrypoints=http"
+      - "traefik.http.routers.kairix-financeiro.middlewares=redirect-to-https@docker"
 
       # Roteamento HTTPS
-      - "traefik.http.routers.kairix-app-secure.rule=Host(`app.kairix.com.br`)"
-      - "traefik.http.routers.kairix-app-secure.entrypoints=https"
-      - "traefik.http.routers.kairix-app-secure.tls=true"
-      - "traefik.http.routers.kairix-app-secure.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.kairix-app-secure.service=kairix-app-service"
+      - "traefik.http.routers.kairix-financeiro-secure.rule=Host(`financeiro.kairix.com.br`)"
+      - "traefik.http.routers.kairix-financeiro-secure.entrypoints=https"
+      - "traefik.http.routers.kairix-financeiro-secure.tls=true"
+      - "traefik.http.routers.kairix-financeiro-secure.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.kairix-financeiro-secure.service=kairix-financeiro-service"
 
       # Middleware para redirect HTTP -> HTTPS
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
 
       # Serviço - porta interna do container
-      - "traefik.http.services.kairix-app-service.loadbalancer.server.port=3000"
+      - "traefik.http.services.kairix-financeiro-service.loadbalancer.server.port=3000"
 
 networks:
   kairix_network:

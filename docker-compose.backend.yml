@@ -56,23 +56,23 @@ services:
       - "traefik.docker.network=proxy"
 
       # Roteamento HTTP (redireciona para HTTPS)
-      - "traefik.http.routers.financeiro.rule=Host(`financeiro.kairix.com.br`)"
-      - "traefik.http.routers.financeiro.entrypoints=http"
-      - "traefik.http.routers.financeiro.middlewares=redirect-to-https@docker"
+      - "traefik.http.routers.financeiro-api.rule=Host(`api.financeiro.kairix.com.br`)"
+      - "traefik.http.routers.financeiro-api.entrypoints=http"
+      - "traefik.http.routers.financeiro-api.middlewares=redirect-to-https@docker"
 
       # Roteamento HTTPS
-      - "traefik.http.routers.financeiro-secure.rule=Host(`financeiro.kairix.com.br`)"
-      - "traefik.http.routers.financeiro-secure.entrypoints=https"
-      - "traefik.http.routers.financeiro-secure.tls=true"
-      - "traefik.http.routers.financeiro-secure.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.financeiro-secure.service=financeiro-service"
+      - "traefik.http.routers.financeiro-api-secure.rule=Host(`api.financeiro.kairix.com.br`)"
+      - "traefik.http.routers.financeiro-api-secure.entrypoints=https"
+      - "traefik.http.routers.financeiro-api-secure.tls=true"
+      - "traefik.http.routers.financeiro-api-secure.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.financeiro-api-secure.service=financeiro-api-service"
 
       # Middleware para redirect HTTP -> HTTPS
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
 
       # Serviço - porta interna do container
-      - "traefik.http.services.financeiro-service.loadbalancer.server.port=8014"
+      - "traefik.http.services.financeiro-api-service.loadbalancer.server.port=8014"
 
 volumes:
   uploads_data:

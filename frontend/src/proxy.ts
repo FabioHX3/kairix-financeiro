@@ -7,10 +7,10 @@ const publicPaths = ['/login', '/cadastro']
 // Static files and API routes to skip
 const skipPaths = ['/api', '/_next', '/assets', '/favicon.ico']
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Skip middleware for static files and API routes
+  // Skip proxy for static files and API routes
   if (skipPaths.some(path => pathname.startsWith(path))) {
     return NextResponse.next()
   }
