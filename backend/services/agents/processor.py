@@ -21,7 +21,7 @@ from backend.services.agents.gateway_agent import GatewayAgent
 
 async def processar_mensagem_v2(
     usuario_id: int,
-    telefone: str,
+    whatsapp: str,
     mensagem: str,
     origem: str = "whatsapp_texto",
     db: Session = None,
@@ -34,7 +34,7 @@ async def processar_mensagem_v2(
 
     Args:
         usuario_id: ID do usuário no banco
-        telefone: Número do WhatsApp
+        whatsapp: Número do WhatsApp do usuário
         mensagem: Texto da mensagem
         origem: Tipo de origem (whatsapp_texto, whatsapp_audio, etc)
         db: Sessão do banco de dados
@@ -70,7 +70,7 @@ async def processar_mensagem_v2(
     # Cria contexto
     context = AgentContext(
         usuario_id=usuario_id,
-        telefone=telefone,
+        whatsapp=whatsapp,
         mensagem_original=mensagem,
         origem=origem_enum,
         timezone=user_timezone,

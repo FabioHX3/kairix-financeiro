@@ -88,7 +88,7 @@ class GatewayAgent(BaseAgent):
         self.log(f"Processando: {context.mensagem_original[:50]}...")
 
         # 1. Verifica se há ação pendente
-        acao_pendente = await memory_service.obter_acao_pendente(context.telefone)
+        acao_pendente = await memory_service.obter_acao_pendente(context.whatsapp)
 
         if acao_pendente:
             return await self._processar_resposta_pendente(context, acao_pendente)
@@ -130,7 +130,7 @@ class GatewayAgent(BaseAgent):
 
         # Se não é nem sim nem não nem código, pode ser nova mensagem
         # Limpa pendente e processa como nova
-        await memory_service.limpar_acao_pendente(context.telefone)
+        await memory_service.limpar_acao_pendente(context.whatsapp)
         return await self.process(context)
 
     async def _confirmar_acao(
@@ -147,7 +147,7 @@ class GatewayAgent(BaseAgent):
             resultado = await self._salvar_transacao(context, dados)
 
             # Limpa ação pendente
-            await memory_service.limpar_acao_pendente(context.telefone)
+            await memory_service.limpar_acao_pendente(context.whatsapp)
 
             # Salva padrão para aprendizado no banco
             if resultado.get("sucesso") and self.db:
@@ -211,7 +211,7 @@ class GatewayAgent(BaseAgent):
                         )
 
             # Limpa ação pendente
-            await memory_service.limpar_acao_pendente(context.telefone)
+            await memory_service.limpar_acao_pendente(context.whatsapp)
 
             if codigos:
                 msg = f"Registradas {len(codigos)} transacoes!\n\n"
@@ -264,7 +264,7 @@ class GatewayAgent(BaseAgent):
 
             # Salva para confirmar
             await memory_service.salvar_acao_pendente(
-                context.telefone,
+                context.whatsapp,
                 "editar_transacao",
                 {
                     "transacao_id": transacao.id,
@@ -303,7 +303,7 @@ class GatewayAgent(BaseAgent):
                 transacao.valor = novo_valor
                 self.db.commit()
 
-                await memory_service.limpar_acao_pendente(context.telefone)
+                await memory_service.limpar_acao_pendente(context.whatsapp)
 
                 return AgentResponse(
                     sucesso=True,
@@ -314,7 +314,7 @@ class GatewayAgent(BaseAgent):
                             f"Algo errado, me avisa!"
                 )
 
-            await memory_service.limpar_acao_pendente(context.telefone)
+            await memory_service.limpar_acao_pendente(context.whatsapp)
             return AgentResponse(sucesso=False, mensagem="Transacao nao encontrada.")
 
         if tipo == "aguardando_codigo_exclusao":
@@ -353,7 +353,7 @@ class GatewayAgent(BaseAgent):
 
             # Salva para confirmar exclusão
             await memory_service.salvar_acao_pendente(
-                context.telefone,
+                context.whatsapp,
                 "deletar_transacao",
                 {
                     "transacao_id": transacao.id,
@@ -392,7 +392,7 @@ class GatewayAgent(BaseAgent):
                 self.db.delete(transacao)
                 self.db.commit()
 
-                await memory_service.limpar_acao_pendente(context.telefone)
+                await memory_service.limpar_acao_pendente(context.whatsapp)
 
                 return AgentResponse(
                     sucesso=True,
@@ -401,11 +401,11 @@ class GatewayAgent(BaseAgent):
                             f"Removido do sistema."
                 )
 
-            await memory_service.limpar_acao_pendente(context.telefone)
+            await memory_service.limpar_acao_pendente(context.whatsapp)
             return AgentResponse(sucesso=False, mensagem="Transacao nao encontrada.")
 
         # Ação desconhecida
-        await memory_service.limpar_acao_pendente(context.telefone)
+        await memory_service.limpar_acao_pendente(context.whatsapp)
         return AgentResponse(
             sucesso=False,
             mensagem="Desculpe, não entendi. Pode repetir?"
@@ -417,7 +417,7 @@ class GatewayAgent(BaseAgent):
         acao_pendente: dict
     ) -> AgentResponse:
         """Cancela ação pendente"""
-        await memory_service.limpar_acao_pendente(context.telefone)
+        await memory_service.limpar_acao_pendente(context.whatsapp)
 
         return AgentResponse(
             sucesso=True,
@@ -800,7 +800,7 @@ Responda APENAS com a categoria (ex: REGISTRAR)"""
                     # Salva lista de códigos válidos para validação posterior
                     codigos_validos = [t.codigo for t in transacoes]
                     await memory_service.salvar_acao_pendente(
-                        context.telefone,
+                        context.whatsapp,
                         "aguardando_codigo_edicao",
                         {"valor_novo": novo_valor, "keyword": keyword_encontrada, "codigos_validos": codigos_validos}
                     )
@@ -834,7 +834,7 @@ Responda APENAS com a categoria (ex: REGISTRAR)"""
         # Se tem novo valor, salva ação pendente para confirmar
         if novo_valor:
             await memory_service.salvar_acao_pendente(
-                context.telefone,
+                context.whatsapp,
                 "editar_transacao",
                 {
                     "transacao_id": transacao.id,
@@ -906,7 +906,7 @@ Responda APENAS com a categoria (ex: REGISTRAR)"""
                     # Salva lista de códigos válidos para validação posterior
                     codigos_validos = [t.codigo for t in transacoes]
                     await memory_service.salvar_acao_pendente(
-                        context.telefone,
+                        context.whatsapp,
                         "aguardando_codigo_exclusao",
                         {"keyword": keyword_encontrada, "codigos_validos": codigos_validos}
                     )
@@ -939,7 +939,7 @@ Responda APENAS com a categoria (ex: REGISTRAR)"""
 
         # Salva ação pendente para confirmar exclusão
         await memory_service.salvar_acao_pendente(
-            context.telefone,
+            context.whatsapp,
             "deletar_transacao",
             {
                 "transacao_id": transacao.id,

@@ -306,7 +306,7 @@ async def webhook_whatsapp(
                 # Processa com sistema multi-agente
                 resultado = await processar_mensagem_v2(
                     usuario_id=usuario.id,
-                    telefone=from_number,
+                    whatsapp=from_number,
                     mensagem=mensagem_original,
                     origem=OrigemMensagem.WHATSAPP_TEXTO.value,
                     db=db,
@@ -359,7 +359,7 @@ async def webhook_whatsapp(
                 # Processa transcrição com multi-agente
                 resultado = await processar_mensagem_v2(
                     usuario_id=usuario.id,
-                    telefone=from_number,
+                    whatsapp=from_number,
                     mensagem=f"[Áudio transcrito] {texto}",
                     origem=OrigemMensagem.WHATSAPP_AUDIO.value,
                     db=db,

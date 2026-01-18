@@ -493,7 +493,7 @@ Categorias receita: {', '.join(self.CATEGORIAS_RECEITA)}"""
 
             # Salva no histórico
             await memory_service.salvar_contexto_conversa(
-                context.telefone,
+                context.whatsapp,
                 context.mensagem_original,
                 msg,
                 {"transacao_codigo": codigo}
@@ -519,7 +519,7 @@ Categorias receita: {', '.join(self.CATEGORIAS_RECEITA)}"""
 
         # Salva ação pendente
         await memory_service.salvar_acao_pendente(
-            context.telefone,
+            context.whatsapp,
             "registrar_transacao",
             {
                 "tipo": dados.get("tipo"),
@@ -572,7 +572,7 @@ Categorias receita: {', '.join(self.CATEGORIAS_RECEITA)}"""
 
         # Salva ação pendente com todos os itens
         await memory_service.salvar_acao_pendente(
-            context.telefone,
+            context.whatsapp,
             "registrar_multiplas",
             {"itens": itens}
         )

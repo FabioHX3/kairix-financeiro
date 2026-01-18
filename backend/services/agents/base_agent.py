@@ -42,7 +42,7 @@ class OrigemMensagem(str, Enum):
 class AgentContext:
     """Contexto compartilhado entre agentes"""
     usuario_id: int
-    telefone: str
+    whatsapp: str
     mensagem_original: str
     origem: OrigemMensagem
     timestamp: datetime = field(default_factory=datetime.utcnow)
