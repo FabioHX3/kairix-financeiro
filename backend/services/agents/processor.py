@@ -5,18 +5,13 @@ Esta função pode ser usada no lugar do agente antigo gradualmente.
 """
 
 import logging
-from typing import Optional, Dict
-from datetime import datetime
 
-logger = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
 
-from backend.services.agents.base_agent import (
-    AgentContext,
-    AgentResponse,
-    OrigemMensagem
-)
+from backend.services.agents.base_agent import AgentContext, AgentResponse, OrigemMensagem
 from backend.services.agents.gateway_agent import GatewayAgent
+
+logger = logging.getLogger(__name__)
 
 
 async def processar_mensagem_v2(
@@ -24,10 +19,10 @@ async def processar_mensagem_v2(
     whatsapp: str,
     mensagem: str,
     origem: str = "whatsapp_texto",
-    db: Session = None,
-    media_url: str = None,
-    media_type: str = None,
-    contexto_extra: Dict = None
+    db: Session | None = None,
+    media_url: str | None = None,
+    media_type: str | None = None,
+    contexto_extra: dict | None = None
 ) -> AgentResponse:
     """
     Processa mensagem usando o novo sistema multi-agente.
@@ -94,7 +89,7 @@ async def processar_mensagem_v2(
         )
 
 
-def converter_resposta_para_legado(response: AgentResponse) -> Dict:
+def converter_resposta_para_legado(response: AgentResponse) -> dict:
     """
     Converte AgentResponse para o formato esperado pelo código legado.
 

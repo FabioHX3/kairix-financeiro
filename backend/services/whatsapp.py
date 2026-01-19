@@ -4,8 +4,9 @@ Compatível com UAZAPI
 """
 
 import logging
+
 import httpx
-from typing import Optional
+
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ class WhatsAppService:
         self,
         numero: str,
         mensagem: str,
-        reply_to: Optional[str] = None
+        reply_to: str | None = None
     ) -> dict:
         """
         Envia mensagem de texto para um número

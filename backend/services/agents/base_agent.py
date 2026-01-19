@@ -7,9 +7,8 @@ Cada agente especializado herda desta classe e implementa sua lógica específic
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Optional
-from enum import Enum
 from datetime import datetime
+from enum import Enum
 
 logger = logging.getLogger(__name__)
 
@@ -51,16 +50,16 @@ class AgentContext:
     timezone: str = "America/Sao_Paulo"  # Default, será preenchido do perfil
 
     # Dados extraídos/processados
-    intent: Optional[IntentType] = None
+    intent: IntentType | None = None
     dados_extraidos: dict = field(default_factory=dict)
 
     # Estado da conversa
     aguardando_confirmacao: bool = False
-    acao_pendente: Optional[dict] = None
+    acao_pendente: dict | None = None
 
     # Mídia (se houver)
-    media_url: Optional[str] = None
-    media_type: Optional[str] = None
+    media_url: str | None = None
+    media_type: str | None = None
 
     # Metadados
     confianca_ia: float = 0.0
@@ -76,14 +75,14 @@ class AgentResponse:
 
     # Controle de fluxo
     requer_confirmacao: bool = False
-    acao_pendente: Optional[dict] = None
+    acao_pendente: dict | None = None
 
     # Próximo agente (se precisar encadear)
-    proximo_agente: Optional[str] = None
+    proximo_agente: str | None = None
 
     # Metadados
     confianca: float = 1.0
-    codigo_transacao: Optional[str] = None
+    codigo_transacao: str | None = None
 
 
 class BaseAgent(ABC):

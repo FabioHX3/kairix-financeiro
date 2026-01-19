@@ -8,25 +8,23 @@ Responsabilidades:
 - Gerar código único para transações
 """
 
-import json
 import re
-from datetime import datetime, timezone
-from typing import Optional, List, Dict
+from datetime import UTC, datetime
+from typing import ClassVar
 
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
 
 from backend.config import settings
 from backend.services.agents.base_agent import (
-    BaseAgent,
     AgentContext,
     AgentResponse,
+    BaseAgent,
     IntentType,
-    OrigemMensagem
 )
-from backend.services.memory_service import memory_service
 from backend.services.agents.learning_agent import learning_agent
 from backend.services.agents.personality_agent import personality_agent
+from backend.services.memory_service import memory_service
 
 
 class GatewayAgent(BaseAgent):
@@ -44,10 +42,10 @@ class GatewayAgent(BaseAgent):
     description = "Orquestrador principal do sistema"
 
     # Palavras-chave para classificação rápida (sem LLM)
-    KEYWORDS_CONFIRMAR = {"sim", "s", "ok", "confirma", "confirmo", "isso", "correto", "certo"}
-    KEYWORDS_CANCELAR = {"nao", "não", "n", "cancela", "cancelar", "errado", "refazer"}
-    KEYWORDS_SAUDACAO = {"oi", "olá", "ola", "eai", "e ai", "bom dia", "boa tarde", "boa noite", "hey", "hi"}
-    KEYWORDS_AJUDA = {"ajuda", "help", "como", "o que", "funciona"}
+    KEYWORDS_CONFIRMAR: ClassVar[set[str]] = {"sim", "s", "ok", "confirma", "confirmo", "isso", "correto", "certo"}
+    KEYWORDS_CANCELAR: ClassVar[set[str]] = {"nao", "não", "n", "cancela", "cancelar", "errado", "refazer"}
+    KEYWORDS_SAUDACAO: ClassVar[set[str]] = {"oi", "olá", "ola", "eai", "e ai", "bom dia", "boa tarde", "boa noite", "hey", "hi"}
+    KEYWORDS_AJUDA: ClassVar[set[str]] = {"ajuda", "help", "como", "o que", "funciona"}
 
     def __init__(self, db_session=None, redis_client=None):
         super().__init__(db_session, redis_client)
@@ -219,7 +217,7 @@ class GatewayAgent(BaseAgent):
                     tipo_emoji = "💸" if item.get("tipo") == "despesa" else "💰"
                     msg += f"{tipo_emoji} R$ {item.get('valor', 0):,.2f} - {item.get('descricao', '')}\n"
                     msg += f"   Codigo: {codigos[i] if i < len(codigos) else 'erro'}\n\n"
-                msg += f"Algo errado, me avisa que corrijo!"
+                msg += "Algo errado, me avisa que corrijo!"
 
                 return AgentResponse(
                     sucesso=True,
@@ -596,9 +594,11 @@ Responda APENAS com a categoria (ex: REGISTRAR)"""
 
     async def _responder_consulta(self, context: AgentContext) -> AgentResponse:
         """Responde consultas básicas"""
-        from backend.models.models import Transacao, TipoTransacao
-        from sqlalchemy import func
         from zoneinfo import ZoneInfo
+
+        from sqlalchemy import func
+
+        from backend.models.models import TipoTransacao, Transacao
 
         if not self.db:
             return AgentResponse(
@@ -664,7 +664,7 @@ Responda APENAS com a categoria (ex: REGISTRAR)"""
                 msg = f"{emoji} *Saldo de {mes_ano}*\n\n"
                 msg += f"💰 Receitas: R$ {receitas:,.2f}\n"
                 msg += f"💸 Despesas: R$ {despesas:,.2f}\n"
-                msg += f"━━━━━━━━━━━━━\n"
+                msg += "━━━━━━━━━━━━━\n"
                 msg += f"*Saldo: R$ {saldo:,.2f}*"
 
                 return AgentResponse(sucesso=True, mensagem=msg)
@@ -700,7 +700,7 @@ Responda APENAS com a categoria (ex: REGISTRAR)"""
             msg = f"📊 *Resumo de {mes_ano}*\n\n"
             msg += f"💰 Receitas: R$ {receitas:,.2f}\n"
             msg += f"💸 Despesas: R$ {despesas:,.2f}\n"
-            msg += f"━━━━━━━━━━━━━\n"
+            msg += "━━━━━━━━━━━━━\n"
             msg += f"*Saldo: R$ {saldo:,.2f}*"
 
             return AgentResponse(sucesso=True, mensagem=msg)
@@ -810,7 +810,7 @@ Responda APENAS com a categoria (ex: REGISTRAR)"""
                         data_fmt = t.data_transacao.strftime("%d/%m %H:%M") if t.data_transacao else "?"
                         msg += f"{i}. R$ {t.valor:,.2f} - {data_fmt}\n"
                         msg += f"   Codigo: {t.codigo}\n\n"
-                    msg += f"Qual delas? Me diz o codigo!"
+                    msg += "Qual delas? Me diz o codigo!"
 
                     return AgentResponse(
                         sucesso=True,
@@ -916,7 +916,7 @@ Responda APENAS com a categoria (ex: REGISTRAR)"""
                         data_fmt = t.data_transacao.strftime("%d/%m %H:%M") if t.data_transacao else "?"
                         msg += f"{i}. R$ {t.valor:,.2f} - {data_fmt}\n"
                         msg += f"   Codigo: {t.codigo}\n\n"
-                    msg += f"Qual delas? Me diz o codigo!"
+                    msg += "Qual delas? Me diz o codigo!"
 
                     return AgentResponse(
                         sucesso=True,
@@ -963,7 +963,12 @@ Responda APENAS com a categoria (ex: REGISTRAR)"""
 
     async def _salvar_transacao(self, context: AgentContext, dados: dict) -> dict:
         """Salva transação no banco de dados"""
-        from backend.models.models import Transacao, TipoTransacao, OrigemRegistro, gerar_codigo_unico
+        from backend.models.models import (
+            OrigemRegistro,
+            TipoTransacao,
+            Transacao,
+            gerar_codigo_unico,
+        )
 
         if not self.db:
             return {"sucesso": False, "erro": "Banco de dados não disponível"}
@@ -993,7 +998,7 @@ Responda APENAS com a categoria (ex: REGISTRAR)"""
                 tipo=tipo,
                 valor=dados.get("valor", 0),
                 descricao=dados.get("descricao", ""),
-                data_transacao=datetime.strptime(dados.get("data", datetime.now(timezone.utc).strftime("%Y-%m-%d")), "%Y-%m-%d").replace(tzinfo=timezone.utc),
+                data_transacao=datetime.strptime(dados.get("data", datetime.now(UTC).strftime("%Y-%m-%d")), "%Y-%m-%d").replace(tzinfo=UTC),
                 origem=origem,
                 mensagem_original=context.mensagem_original,
                 confianca_ia=dados.get("confianca", 0.0)

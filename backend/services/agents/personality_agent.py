@@ -7,14 +7,11 @@ Responsabilidades:
 - Manter consistência na comunicação
 """
 
-from typing import Dict
-from datetime import datetime, timezone
+import random
+from datetime import UTC, datetime
+from typing import ClassVar
 
-from backend.services.agents.base_agent import (
-    BaseAgent,
-    AgentContext,
-    AgentResponse
-)
+from backend.services.agents.base_agent import AgentContext, AgentResponse, BaseAgent
 
 
 class PersonalityAgent(BaseAgent):
@@ -31,7 +28,7 @@ class PersonalityAgent(BaseAgent):
     description = "Aplica estilo de comunicação"
 
     # Templates de saudação por personalidade
-    SAUDACOES = {
+    SAUDACOES: ClassVar[dict[str, dict[str, str]]] = {
         "formal": {
             "manha": "Bom dia.",
             "tarde": "Boa tarde.",
@@ -53,7 +50,7 @@ class PersonalityAgent(BaseAgent):
     }
 
     # Confirmações por personalidade
-    CONFIRMACOES = {
+    CONFIRMACOES: ClassVar[dict[str, list[str]]] = {
         "formal": [
             "Registrado.",
             "Transação salva.",
@@ -75,7 +72,7 @@ class PersonalityAgent(BaseAgent):
     }
 
     # Emojis por categoria
-    EMOJIS_CATEGORIA = {
+    EMOJIS_CATEGORIA: ClassVar[dict[str, str]] = {
         "Alimentacao": "🍽️",
         "Alimentação": "🍽️",
         "Transporte": "🚗",
@@ -109,7 +106,7 @@ class PersonalityAgent(BaseAgent):
 
     def obter_saudacao(self, personalidade: str = "amigavel") -> str:
         """Retorna saudação apropriada para hora e personalidade"""
-        hora = datetime.now(timezone.utc).hour
+        hora = datetime.now(UTC).hour
 
         if hora < 12:
             periodo = "manha"
@@ -123,9 +120,8 @@ class PersonalityAgent(BaseAgent):
 
     def obter_confirmacao(self, personalidade: str = "amigavel") -> str:
         """Retorna confirmação aleatória para a personalidade"""
-        import random
         confirmacoes = self.CONFIRMACOES.get(personalidade, self.CONFIRMACOES["amigavel"])
-        return random.choice(confirmacoes)
+        return random.choice(confirmacoes)  # noqa: S311
 
     def obter_emoji_categoria(self, categoria: str) -> str:
         """Retorna emoji para categoria"""
@@ -241,7 +237,7 @@ class PersonalityAgent(BaseAgent):
                 f"Certo? Se nao, me corrija!"
             )
 
-    def formatar_saudacao_inicial(self, personalidade: str, nome: str = None) -> str:
+    def formatar_saudacao_inicial(self, personalidade: str, nome: str | None = None) -> str:
         """Formata saudação inicial do assistente"""
         saudacao = self.obter_saudacao(personalidade)
 
@@ -270,7 +266,7 @@ class PersonalityAgent(BaseAgent):
 
         return msg
 
-    def formatar_erro(self, personalidade: str, mensagem: str = None) -> str:
+    def formatar_erro(self, personalidade: str, mensagem: str | None = None) -> str:
         """Formata mensagem de erro"""
         if personalidade == "formal":
             base = "Nao foi possivel processar a solicitacao."

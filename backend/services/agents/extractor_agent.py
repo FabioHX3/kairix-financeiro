@@ -10,23 +10,22 @@ Responsabilidades:
 
 import json
 import re
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, List
+from datetime import UTC, datetime, timedelta
+from typing import ClassVar
 
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
 
 from backend.config import settings
 from backend.services.agents.base_agent import (
-    BaseAgent,
     AgentContext,
     AgentResponse,
+    BaseAgent,
     IntentType,
-    OrigemMensagem
 )
-from backend.services.memory_service import memory_service
-from backend.services.agents.personality_agent import personality_agent
 from backend.services.agents.learning_agent import learning_agent
+from backend.services.agents.personality_agent import personality_agent
+from backend.services.memory_service import memory_service
 
 
 class ExtractorAgent(BaseAgent):
@@ -43,11 +42,11 @@ class ExtractorAgent(BaseAgent):
     description = "Especialista em extrair transações"
 
     # Categorias padrão (fallback se não vier do banco)
-    CATEGORIAS_DESPESA = [
+    CATEGORIAS_DESPESA: ClassVar[list[str]] = [
         "Alimentacao", "Transporte", "Saude", "Educacao",
         "Lazer", "Casa", "Vestuario", "Outros"
     ]
-    CATEGORIAS_RECEITA = [
+    CATEGORIAS_RECEITA: ClassVar[list[str]] = [
         "Salario", "Freelance", "Investimentos", "Vendas", "Aluguel", "Outros"
     ]
 
@@ -129,7 +128,7 @@ class ExtractorAgent(BaseAgent):
             # Pede confirmação
             return await self._pedir_confirmacao(context, dados)
 
-    def _extracao_rapida(self, texto: str, timezone: str = "America/Sao_Paulo") -> Optional[Dict]:
+    def _extracao_rapida(self, texto: str, timezone: str = "America/Sao_Paulo") -> dict | None:
         """
         Extração rápida usando regex.
         Cobre os casos mais comuns sem precisar de LLM.
@@ -290,7 +289,7 @@ class ExtractorAgent(BaseAgent):
             "ipva": ("IPVA", ["ipva"]),
         }
 
-        for chave, (nome_bonito, palavras_chave) in mapeamento_contas.items():
+        for _chave, (nome_bonito, palavras_chave) in mapeamento_contas.items():
             # Verifica se alguma palavra-chave está como palavra inteira
             if any(p in palavras_texto for p in palavras_chave):
                 return nome_bonito
@@ -337,7 +336,7 @@ class ExtractorAgent(BaseAgent):
                 return "Vestuario"
             return "Outros"
 
-    async def _extracao_llm(self, context: AgentContext) -> Dict:
+    async def _extracao_llm(self, context: AgentContext) -> dict:
         """Extrai dados usando LLM"""
         from zoneinfo import ZoneInfo
         hoje = datetime.now(ZoneInfo(context.timezone))
@@ -413,9 +412,14 @@ Categorias receita: {', '.join(self.CATEGORIAS_RECEITA)}"""
             self.log(f"Erro na extracao LLM: {e}")
             return {}
 
-    async def _registrar_direto(self, context: AgentContext, dados: Dict) -> AgentResponse:
+    async def _registrar_direto(self, context: AgentContext, dados: dict) -> AgentResponse:
         """Registra transação diretamente (alta confiança)"""
-        from backend.models.models import Transacao, TipoTransacao, OrigemRegistro, gerar_codigo_unico
+        from backend.models.models import (
+            OrigemRegistro,
+            TipoTransacao,
+            Transacao,
+            gerar_codigo_unico,
+        )
 
         if not self.db:
             return AgentResponse(
@@ -451,7 +455,7 @@ Categorias receita: {', '.join(self.CATEGORIAS_RECEITA)}"""
                 tipo=tipo,
                 valor=dados["valor"],
                 descricao=dados.get("descricao", ""),
-                data_transacao=datetime.strptime(dados.get("data", datetime.now(timezone.utc).strftime("%Y-%m-%d")), "%Y-%m-%d").replace(tzinfo=timezone.utc),
+                data_transacao=datetime.strptime(dados.get("data", datetime.now(UTC).strftime("%Y-%m-%d")), "%Y-%m-%d").replace(tzinfo=UTC),
                 origem=origem,
                 mensagem_original=context.mensagem_original,
                 confianca_ia=dados.get("confianca", 0.0)
@@ -514,7 +518,7 @@ Categorias receita: {', '.join(self.CATEGORIAS_RECEITA)}"""
                 mensagem="Erro ao registrar. Tente novamente."
             )
 
-    async def _pedir_confirmacao(self, context: AgentContext, dados: Dict) -> AgentResponse:
+    async def _pedir_confirmacao(self, context: AgentContext, dados: dict) -> AgentResponse:
         """Pede confirmação do usuário antes de registrar"""
 
         # Salva ação pendente
@@ -562,7 +566,7 @@ Categorias receita: {', '.join(self.CATEGORIAS_RECEITA)}"""
             confianca=dados.get("confianca", 0)
         )
 
-    async def _pedir_confirmacao_multiplos(self, context: AgentContext, dados: Dict) -> AgentResponse:
+    async def _pedir_confirmacao_multiplos(self, context: AgentContext, dados: dict) -> AgentResponse:
         """Pede confirmação para múltiplas transações"""
         itens = dados.get("itens", [])
 
@@ -603,7 +607,7 @@ Categorias receita: {', '.join(self.CATEGORIAS_RECEITA)}"""
             confianca=dados.get("confianca", 0)
         )
 
-    async def _buscar_categoria_id(self, nome: str, tipo: str) -> Optional[int]:
+    async def _buscar_categoria_id(self, nome: str, tipo: str) -> int | None:
         """Busca ID da categoria no banco"""
         if not self.db:
             return None

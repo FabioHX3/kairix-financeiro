@@ -9,16 +9,11 @@ Responsabilidades:
 """
 
 import unicodedata
-from typing import Optional, Dict, List
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from sqlalchemy.orm import Session
 
-from backend.services.agents.base_agent import (
-    BaseAgent,
-    AgentContext,
-    AgentResponse,
-    IntentType
-)
+from backend.services.agents.base_agent import AgentContext, AgentResponse, BaseAgent
 
 
 class LearningAgent(BaseAgent):
@@ -92,7 +87,7 @@ class LearningAgent(BaseAgent):
         descricao: str,
         categoria_id: int,
         tipo: str
-    ) -> Dict:
+    ) -> dict:
         """
         Registra ou atualiza padrão após transação confirmada.
 
@@ -106,7 +101,7 @@ class LearningAgent(BaseAgent):
         Returns:
             Dict com info do padrão (novo ou atualizado)
         """
-        from backend.models import UserPattern, TipoTransacao
+        from backend.models import TipoTransacao, UserPattern
 
         palavras_chave = self.extrair_palavras_chave(descricao)
 
@@ -133,7 +128,7 @@ class LearningAgent(BaseAgent):
                 self.CONFIANCA_MAX
             )
             padrao_existente.confianca = nova_confianca
-            padrao_existente.atualizado_em = datetime.now(timezone.utc)
+            padrao_existente.atualizado_em = datetime.now(UTC)
 
             db.commit()
 
@@ -176,7 +171,7 @@ class LearningAgent(BaseAgent):
         usuario_id: int,
         descricao: str,
         tipo: str
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """
         Busca padrão correspondente à descrição.
 
@@ -189,7 +184,7 @@ class LearningAgent(BaseAgent):
         Returns:
             Dict com dados do padrão ou None
         """
-        from backend.models import UserPattern, TipoTransacao, Categoria
+        from backend.models import Categoria, TipoTransacao, UserPattern
 
         palavras_chave = self.extrair_palavras_chave(descricao)
 
@@ -245,7 +240,7 @@ class LearningAgent(BaseAgent):
         self,
         db: Session,
         usuario_id: int
-    ) -> Dict:
+    ) -> dict:
         """
         Obtém preferências do usuário do banco.
 
@@ -256,7 +251,7 @@ class LearningAgent(BaseAgent):
         Returns:
             Dict com preferências (usa defaults se não existir)
         """
-        from backend.models import UserPreferences, PersonalidadeIA
+        from backend.models import PersonalidadeIA, UserPreferences
 
         prefs = db.query(UserPreferences).filter(
             UserPreferences.usuario_id == usuario_id
@@ -294,7 +289,7 @@ class LearningAgent(BaseAgent):
         self,
         db: Session,
         usuario_id: int
-    ) -> Dict:
+    ) -> dict:
         """
         Cria preferências padrão para um usuário.
 
@@ -328,8 +323,8 @@ class LearningAgent(BaseAgent):
         self,
         db: Session,
         usuario_id: int,
-        dados: Dict
-    ) -> Dict:
+        dados: dict
+    ) -> dict:
         """
         Atualiza preferências do usuário.
 
@@ -341,7 +336,7 @@ class LearningAgent(BaseAgent):
         Returns:
             Dict com preferências atualizadas
         """
-        from backend.models import UserPreferences, PersonalidadeIA
+        from backend.models import PersonalidadeIA, UserPreferences
 
         prefs = db.query(UserPreferences).filter(
             UserPreferences.usuario_id == usuario_id
@@ -370,7 +365,7 @@ class LearningAgent(BaseAgent):
 
                 setattr(prefs, campo, valor)
 
-        prefs.atualizado_em = datetime.now(timezone.utc)
+        prefs.atualizado_em = datetime.now(UTC)
         db.commit()
 
         self.log(f"Preferências atualizadas para usuário {usuario_id}")
@@ -399,7 +394,7 @@ class LearningAgent(BaseAgent):
         db: Session,
         usuario_id: int,
         limite: int = 20
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Lista padrões aprendidos do usuário.
 
@@ -411,7 +406,7 @@ class LearningAgent(BaseAgent):
         Returns:
             Lista de padrões
         """
-        from backend.models import UserPattern, Categoria
+        from backend.models import Categoria, UserPattern
 
         padroes = db.query(UserPattern).filter(
             UserPattern.usuario_id == usuario_id

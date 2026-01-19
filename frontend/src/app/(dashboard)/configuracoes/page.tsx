@@ -44,7 +44,7 @@ import { usePreferences, useUpdatePreferences, usePatterns, useDeletePattern } f
 import { useCategories, useCreateCategory, useDeleteCategory } from '@/hooks/use-categories'
 import { useFamilyMembers, useCreateFamilyMember, useDeleteFamilyMember } from '@/hooks/use-family'
 import { profileSchema, changePasswordSchema, type ProfileFormData, type ChangePasswordFormData } from '@/lib/utils/validators'
-import type { Categoria, MembroFamilia, UserPattern } from '@/types/models'
+import type { Categoria, MembroFamilia, UserPattern, PersonalidadeIA } from '@/types/models'
 
 const personalityOptions = [
   { value: 'formal', label: 'Formal', description: 'Respostas diretas e profissionais' },
@@ -64,10 +64,10 @@ export default function ConfiguracoesPage() {
   const { data: preferences, isLoading: loadingPrefs } = usePreferences()
   const updatePrefsMutation = useUpdatePreferences()
   const { data: categories, isLoading: loadingCats } = useCategories()
-  const createCategoryMutation = useCreateCategory()
+  const _createCategoryMutation = useCreateCategory()
   const deleteCategoryMutation = useDeleteCategory()
   const { data: familyMembers, isLoading: loadingFamily } = useFamilyMembers()
-  const createFamilyMutation = useCreateFamilyMember()
+  const _createFamilyMutation = useCreateFamilyMember()
   const deleteFamilyMutation = useDeleteFamilyMember()
   const { data: patterns, isLoading: loadingPatterns } = usePatterns()
   const deletePatternMutation = useDeletePattern()
@@ -343,7 +343,7 @@ export default function ConfiguracoesPage() {
                           ? 'border-primary bg-primary/5'
                           : 'hover:bg-secondary/50'
                       }`}
-                      onClick={() => updatePrefsMutation.mutate({ personalidade: option.value as any })}
+                      onClick={() => updatePrefsMutation.mutate({ personalidade: option.value as PersonalidadeIA })}
                     >
                       <div>
                         <p className="font-medium">{option.label}</p>

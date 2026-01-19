@@ -8,21 +8,23 @@ Endpoints para gerenciar transacoes recorrentes:
 - Previsao mensal
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
-from typing import Optional, List
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.security import obter_usuario_atual
 from backend.models import (
-    Usuario, RecurringTransaction, ScheduledBill,
-    FrequenciaRecorrencia, StatusRecorrencia, StatusConta
+    FrequenciaRecorrencia,
+    RecurringTransaction,
+    StatusRecorrencia,
+    Usuario,
 )
-from backend.services.agents.recurrence_agent import recurrence_agent
 from backend.services.agents.consultant_agent import consultant_agent
+from backend.services.agents.recurrence_agent import recurrence_agent
 
 router = APIRouter(prefix="/api/recorrencias", tags=["Recorrencias"])
 
@@ -54,12 +56,12 @@ class RecorrenciaResponse(BaseModel):
     tipo: str
     valor_medio: float
     frequencia: str
-    dia_mes: Optional[int]
-    categoria_nome: Optional[str]
+    dia_mes: int | None
+    categoria_nome: str | None
     status: str
     ocorrencias: int
-    ultima_ocorrencia: Optional[str]
-    proxima_esperada: Optional[str]
+    ultima_ocorrencia: str | None
+    proxima_esperada: str | None
     confianca: float
     auto_confirmar: bool
 
@@ -72,19 +74,19 @@ class RecorrenciaCreate(BaseModel):
     tipo: str = Field(..., pattern="^(receita|despesa)$")
     valor: float = Field(..., gt=0)
     frequencia: FrequenciaEnum
-    dia_mes: Optional[int] = Field(None, ge=1, le=31)
-    categoria_id: Optional[int] = None
+    dia_mes: int | None = Field(None, ge=1, le=31)
+    categoria_id: int | None = None
     auto_confirmar: bool = False
 
 
 class RecorrenciaUpdate(BaseModel):
-    descricao: Optional[str] = Field(None, min_length=2, max_length=255)
-    valor: Optional[float] = Field(None, gt=0)
-    frequencia: Optional[FrequenciaEnum] = None
-    dia_mes: Optional[int] = Field(None, ge=1, le=31)
-    categoria_id: Optional[int] = None
-    status: Optional[StatusRecorrenciaEnum] = None
-    auto_confirmar: Optional[bool] = None
+    descricao: str | None = Field(None, min_length=2, max_length=255)
+    valor: float | None = Field(None, gt=0)
+    frequencia: FrequenciaEnum | None = None
+    dia_mes: int | None = Field(None, ge=1, le=31)
+    categoria_id: int | None = None
+    status: StatusRecorrenciaEnum | None = None
+    auto_confirmar: bool | None = None
 
 
 class DeteccaoResponse(BaseModel):
@@ -94,7 +96,7 @@ class DeteccaoResponse(BaseModel):
     frequencia: str
     ocorrencias: int
     confianca: float
-    proxima_esperada: Optional[str]
+    proxima_esperada: str | None
 
 
 class PrevisaoResponse(BaseModel):
@@ -103,14 +105,14 @@ class PrevisaoResponse(BaseModel):
     total_despesas: float
     total_receitas: float
     saldo_previsto: float
-    itens: List[dict]
+    itens: list[dict]
 
 
 # ============================================================================
 # ENDPOINTS - RECORRENCIAS
 # ============================================================================
 
-@router.get("", response_model=List[RecorrenciaResponse])
+@router.get("", response_model=list[RecorrenciaResponse])
 async def listar_recorrencias(
     apenas_ativas: bool = True,
     usuario: Usuario = Depends(obter_usuario_atual),
@@ -125,7 +127,7 @@ async def listar_recorrencias(
     return [RecorrenciaResponse(**r) for r in recorrencias]
 
 
-@router.post("/detectar", response_model=List[DeteccaoResponse])
+@router.post("/detectar", response_model=list[DeteccaoResponse])
 async def detectar_recorrencias(
     dias: int = 180,
     usuario: Usuario = Depends(obter_usuario_atual),
@@ -253,7 +255,7 @@ async def atualizar_recorrencia(
     if dados.auto_confirmar is not None:
         recorrencia.auto_confirmar = dados.auto_confirmar
 
-    recorrencia.atualizado_em = datetime.now(timezone.utc)
+    recorrencia.atualizado_em = datetime.now(UTC)
     db.commit()
 
     # Busca para retornar formatado
@@ -294,8 +296,8 @@ async def deletar_recorrencia(
 
 @router.get("/previsao", response_model=PrevisaoResponse)
 async def obter_previsao(
-    mes: Optional[int] = None,
-    ano: Optional[int] = None,
+    mes: int | None = None,
+    ano: int | None = None,
     usuario: Usuario = Depends(obter_usuario_atual),
     db: Session = Depends(get_db)
 ):
@@ -325,8 +327,8 @@ async def obter_resumo(
 
 @router.get("/saldo")
 async def obter_saldo(
-    mes: Optional[int] = None,
-    ano: Optional[int] = None,
+    mes: int | None = None,
+    ano: int | None = None,
     usuario: Usuario = Depends(obter_usuario_atual),
     db: Session = Depends(get_db)
 ):
@@ -338,8 +340,8 @@ async def obter_saldo(
 
 @router.get("/categorias")
 async def obter_gastos_categorias(
-    mes: Optional[int] = None,
-    ano: Optional[int] = None,
+    mes: int | None = None,
+    ano: int | None = None,
     tipo: str = "despesa",
     usuario: Usuario = Depends(obter_usuario_atual),
     db: Session = Depends(get_db)

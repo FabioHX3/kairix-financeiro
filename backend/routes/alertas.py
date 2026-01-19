@@ -8,11 +8,11 @@ Endpoints para gerenciar alertas proativos:
 - Visualizar jobs agendados
 """
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional, List
-from datetime import datetime, timezone
+from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.security import obter_usuario_atual
@@ -35,14 +35,14 @@ class AlertaResponse(BaseModel):
 
 class VerificacaoResponse(BaseModel):
     usuario_id: int
-    alertas: List[AlertaResponse]
+    alertas: list[AlertaResponse]
     total: int
 
 
 class JobResponse(BaseModel):
     id: str
     name: str
-    next_run: Optional[str]
+    next_run: str | None
     trigger: str
 
 
@@ -88,7 +88,7 @@ async def verificar_alertas(
     )
 
 
-@router.get("/contas-vencer", response_model=List[ContaVencerResponse])
+@router.get("/contas-vencer", response_model=list[ContaVencerResponse])
 async def listar_contas_vencer(
     dias: int = 7,
     usuario: Usuario = Depends(obter_usuario_atual),
@@ -101,7 +101,7 @@ async def listar_contas_vencer(
     return [ContaVencerResponse(**c) for c in contas]
 
 
-@router.get("/contas-atrasadas", response_model=List[dict])
+@router.get("/contas-atrasadas", response_model=list[dict])
 async def listar_contas_atrasadas(
     usuario: Usuario = Depends(obter_usuario_atual),
     db: Session = Depends(get_db)
@@ -112,7 +112,7 @@ async def listar_contas_atrasadas(
     return await proactive_agent.verificar_contas_atrasadas(db, usuario.id)
 
 
-@router.get("/anomalias", response_model=List[AnomaliaResponse])
+@router.get("/anomalias", response_model=list[AnomaliaResponse])
 async def listar_anomalias(
     percentual: float = 0.30,
     usuario: Usuario = Depends(obter_usuario_atual),
@@ -269,5 +269,5 @@ async def executar_verificacao_agora(
         "sucesso": True,
         "alertas_enviados": len(resultado["alertas"]),
         "alertas": resultado["alertas"],
-        "executado_em": datetime.now(timezone.utc).isoformat()
+        "executado_em": datetime.now(UTC).isoformat()
     }

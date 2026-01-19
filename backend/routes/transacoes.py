@@ -1,15 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
 from datetime import date
-from typing import Optional, List
 from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.security import obter_usuario_atual
-from backend.models import Usuario, Transacao, Categoria, TipoTransacao, StatusTransacao, gerar_codigo_unico
-from backend.schemas import (
-    TransacaoCriar, TransacaoResposta, TransacaoAtualizar, ResumoPeriodo
+from backend.models import (
+    Categoria,
+    StatusTransacao,
+    TipoTransacao,
+    Transacao,
+    Usuario,
+    gerar_codigo_unico,
 )
+from backend.schemas import ResumoPeriodo, TransacaoAtualizar, TransacaoCriar, TransacaoResposta
 
 router = APIRouter(prefix="/api/transacoes", tags=["Transações"])
 
@@ -55,12 +60,12 @@ async def criar_transacao(
     return nova_transacao
 
 
-@router.get("", response_model=List[TransacaoResposta])
+@router.get("", response_model=list[TransacaoResposta])
 async def listar_transacoes(
-    tipo: Optional[TipoTransacao] = None,
-    categoria_id: Optional[int] = None,
-    data_inicio: Optional[date] = None,
-    data_fim: Optional[date] = None,
+    tipo: TipoTransacao | None = None,
+    categoria_id: int | None = None,
+    data_inicio: date | None = None,
+    data_fim: date | None = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=5000),
     usuario_atual: Usuario = Depends(obter_usuario_atual),
@@ -162,8 +167,8 @@ async def deletar_transacao(
 
 @router.get("/resumo/periodo", response_model=ResumoPeriodo)
 async def obter_resumo_periodo(
-    data_inicio: Optional[date] = None,
-    data_fim: Optional[date] = None,
+    data_inicio: date | None = None,
+    data_fim: date | None = None,
     usuario_atual: Usuario = Depends(obter_usuario_atual),
     db: Session = Depends(get_db)
 ):

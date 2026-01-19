@@ -8,9 +8,9 @@ Três níveis de memória:
 """
 
 import json
+from datetime import UTC, datetime
+
 import redis.asyncio as redis
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Any
 
 from backend.config import settings
 
@@ -30,7 +30,7 @@ class MemoryService:
     PREFIX_PREFERENCIAS = "kairix:prefs:"
 
     def __init__(self):
-        self._redis: Optional[redis.Redis] = None
+        self._redis: redis.Redis | None = None
 
     async def connect(self):
         """Conecta ao Redis"""
@@ -55,7 +55,7 @@ class MemoryService:
         telefone: str,
         mensagem: str,
         resposta: str,
-        dados_extras: dict = None
+        dados_extras: dict | None = None
     ):
         """
         Salva contexto da conversa atual.
@@ -69,7 +69,7 @@ class MemoryService:
 
         # Adiciona nova interação
         historico.append({
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "usuario": mensagem,
             "assistente": resposta,
             "dados": dados_extras or {}
@@ -103,7 +103,7 @@ class MemoryService:
         telefone: str,
         tipo_acao: str,
         dados: dict,
-        ttl: int = None
+        ttl: int | None = None
     ):
         """
         Salva ação aguardando confirmação do usuário.
@@ -115,12 +115,12 @@ class MemoryService:
         acao = {
             "tipo": tipo_acao,
             "dados": dados,
-            "criado_em": datetime.now(timezone.utc).isoformat()
+            "criado_em": datetime.now(UTC).isoformat()
         }
 
         await r.setex(key, ttl or self.TTL_CONFIRMACAO, json.dumps(acao))
 
-    async def obter_acao_pendente(self, telefone: str) -> Optional[dict]:
+    async def obter_acao_pendente(self, telefone: str) -> dict | None:
         """Retorna ação pendente se existir"""
         r = await self.connect()
         key = f"{self.PREFIX_PENDENTE}{telefone}"
@@ -165,7 +165,7 @@ class MemoryService:
                 p["categoria_id"] = categoria_id
                 p["tipo"] = tipo
                 p["ocorrencias"] = p.get("ocorrencias", 0) + 1
-                p["ultima_vez"] = datetime.now(timezone.utc).isoformat()
+                p["ultima_vez"] = datetime.now(UTC).isoformat()
                 encontrado = True
                 break
 
@@ -176,8 +176,8 @@ class MemoryService:
                 "categoria_id": categoria_id,
                 "tipo": tipo,
                 "ocorrencias": 1,
-                "criado_em": datetime.now(timezone.utc).isoformat(),
-                "ultima_vez": datetime.now(timezone.utc).isoformat()
+                "criado_em": datetime.now(UTC).isoformat(),
+                "ultima_vez": datetime.now(UTC).isoformat()
             })
 
         await r.setex(key, self.TTL_MEDIA, json.dumps(padroes))
@@ -196,7 +196,7 @@ class MemoryService:
         self,
         usuario_id: int,
         descricao: str
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """Busca padrão correspondente à descrição"""
         padroes = await self.obter_padroes_usuario(usuario_id)
         desc_norm = self._normalizar(descricao)

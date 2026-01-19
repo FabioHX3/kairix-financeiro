@@ -6,50 +6,161 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     # Web Framework
-    "fastapi",
-    "uvicorn",
-    "python-multipart",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "python-multipart>=0.0.9",
 
     # Database
-    "sqlalchemy",
-    "psycopg2-binary",
+    "sqlalchemy>=2.0.0",
+    "psycopg2-binary>=2.9.0",
 
     # Auth & Security
-    "python-jose[cryptography]",
-    "passlib[bcrypt]",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "slowapi>=0.1.9",
 
     # Config
-    "python-dotenv",
-    "pydantic[email]",
-    "pydantic-settings",
+    "pydantic[email]>=2.0.0",
+    "pydantic-settings>=2.0.0",
 
     # HTTP Client
-    "requests",
-    "httpx",
+    "httpx>=0.27.0",
 
     # LangChain - Agente IA
-    "langchain",
-    "langchain-openai",
-    "langchain-community",
+    "langchain>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "langchain-community>=0.3.0",
 
     # Memory/Storage para LangChain
-    "redis",
+    "redis>=5.0.0",
 
     # Task Queue async
-    "arq",
+    "arq>=0.26.0",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest",
-    "pytest-asyncio",
-    "ruff",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "httpx>=0.27.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "pre-commit>=4.0.0",
+    "types-redis>=4.6.0",
 ]
+
+# =============================================================================
+# Ruff - Linter e Formatter
+# =============================================================================
 
 [tool.ruff]
 line-length = 100
 target-version = "py313"
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "*.pyc",
+    "alembic",
+    "migrations",
+]
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
-ignore = ["E501"]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "UP",    # pyupgrade
+    "S",     # flake8-bandit (security)
+    "T20",   # flake8-print
+    "SIM",   # flake8-simplify
+    "RUF",   # Ruff-specific rules
+]
+
+ignore = [
+    "E501",   # Line too long (handled by formatter)
+    "S101",   # Use of assert (allowed in tests)
+    "S105",   # Hardcoded password (false positives)
+    "S106",   # Hardcoded password (false positives)
+    "B008",   # Function call in default argument (FastAPI Depends)
+    "B904",   # raise without from in except (too noisy)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106"]
+"backend/config.py" = ["S105", "S106"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# =============================================================================
+# MyPy - Type Checking
+# =============================================================================
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = true
+check_untyped_defs = true
+ignore_missing_imports = true
+exclude = [
+    "venv",
+    ".venv",
+    "alembic",
+    "migrations",
+]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+# =============================================================================
+# Pytest
+# =============================================================================
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = [
+    "-v",
+    "--tb=short",
+    "-ra",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]
+
+[tool.coverage.run]
+source = ["backend"]
+branch = true
+omit = [
+    "backend/alembic/*",
+    "backend/migrations/*",
+    "tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]

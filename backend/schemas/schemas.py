@@ -1,10 +1,9 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
-from datetime import datetime
-from typing import Optional, List
 import re
+from datetime import datetime
 
-from backend.models.models import TipoTransacao, StatusTransacao, OrigemRegistro
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from backend.models.models import OrigemRegistro, StatusTransacao, TipoTransacao
 
 # ==================== Usuario ====================
 
@@ -22,7 +21,7 @@ class UsuarioBase(BaseModel):
         description="Email do usuário (usado para login)",
         json_schema_extra={"example": "joao@email.com"}
     )
-    whatsapp: Optional[str] = Field(
+    whatsapp: str | None = Field(
         None,
         min_length=10,
         max_length=15,
@@ -51,26 +50,40 @@ class UsuarioCriar(UsuarioBase):
     """
     senha: str = Field(
         ...,
-        min_length=6,
+        min_length=8,
         max_length=100,
-        description="Senha do usuário (mínimo 6 caracteres)",
-        json_schema_extra={"example": "senha123"}
+        description="Senha com mínimo 8 caracteres, letras maiúsculas/minúsculas e números",
+        json_schema_extra={"example": "Senha123"},
     )
+
+    @field_validator("senha")
+    @classmethod
+    def validar_senha(cls, v: str) -> str:
+        """Valida força da senha."""
+        if len(v) < 8:
+            raise ValueError("Senha deve ter no mínimo 8 caracteres")
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Senha deve conter pelo menos uma letra minúscula")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Senha deve conter pelo menos uma letra maiúscula")
+        if not re.search(r"\d", v):
+            raise ValueError("Senha deve conter pelo menos um número")
+        return v
 
 
 class UsuarioAtualizar(BaseModel):
     """Schema para atualização de dados do usuário"""
-    nome: Optional[str] = Field(
+    nome: str | None = Field(
         None,
         min_length=2,
         max_length=100,
         description="Nome completo do usuário"
     )
-    email: Optional[EmailStr] = Field(
+    email: EmailStr | None = Field(
         None,
         description="Email do usuário"
     )
-    whatsapp: Optional[str] = Field(
+    whatsapp: str | None = Field(
         None,
         min_length=10,
         max_length=15,
@@ -89,17 +102,29 @@ class UsuarioAtualizar(BaseModel):
 
 
 class UsuarioAlterarSenha(BaseModel):
-    """Schema para alteração de senha"""
-    senha_atual: str = Field(
-        ...,
-        description="Senha atual do usuário"
-    )
+    """Schema para alteração de senha."""
+
+    senha_atual: str = Field(..., description="Senha atual do usuário")
     senha_nova: str = Field(
         ...,
-        min_length=6,
+        min_length=8,
         max_length=100,
-        description="Nova senha (mínimo 6 caracteres)"
+        description="Nova senha com mínimo 8 caracteres, letras maiúsculas/minúsculas e números",
     )
+
+    @field_validator("senha_nova")
+    @classmethod
+    def validar_senha_nova(cls, v: str) -> str:
+        """Valida força da nova senha."""
+        if len(v) < 8:
+            raise ValueError("Senha deve ter no mínimo 8 caracteres")
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Senha deve conter pelo menos uma letra minúscula")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Senha deve conter pelo menos uma letra maiúscula")
+        if not re.search(r"\d", v):
+            raise ValueError("Senha deve conter pelo menos um número")
+        return v
 
 
 class UsuarioResposta(BaseModel):
@@ -109,16 +134,10 @@ class UsuarioResposta(BaseModel):
     Retornado após cadastro, login ou consulta de dados.
     Não inclui a senha por segurança.
     """
-    id: int = Field(..., description="ID único do usuário")
-    nome: str = Field(..., description="Nome completo")
-    email: EmailStr = Field(..., description="Email do usuário")
-    whatsapp: Optional[str] = Field(None, description="WhatsApp com DDD")
-    ativo: bool = Field(..., description="Se o usuário está ativo no sistema")
-    criado_em: datetime = Field(..., description="Data de criação do cadastro")
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
             "example": {
                 "id": 1,
                 "nome": "João da Silva",
@@ -128,6 +147,14 @@ class UsuarioResposta(BaseModel):
                 "criado_em": "2025-01-18T10:00:00Z"
             }
         }
+    }
+
+    id: int = Field(..., description="ID único do usuário")
+    nome: str = Field(..., description="Nome completo")
+    email: EmailStr = Field(..., description="Email do usuário")
+    whatsapp: str | None = Field(None, description="WhatsApp com DDD")
+    ativo: bool = Field(..., description="Se o usuário está ativo no sistema")
+    criado_em: datetime = Field(..., description="Data de criação do cadastro")
 
 
 # ==================== Auth ====================
@@ -138,7 +165,7 @@ class Token(BaseModel):
 
 
 class TokenData(BaseModel):
-    email: Optional[str] = None
+    email: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -173,9 +200,9 @@ class MembroFamiliaCriar(MembroFamiliaBase):
 
 
 class MembroFamiliaAtualizar(BaseModel):
-    nome: Optional[str] = Field(None, min_length=2, max_length=100)
-    whatsapp: Optional[str] = Field(None, min_length=10, max_length=15)
-    ativo: Optional[bool] = None
+    nome: str | None = Field(None, min_length=2, max_length=100)
+    whatsapp: str | None = Field(None, min_length=10, max_length=15)
+    ativo: bool | None = None
 
     @field_validator('whatsapp', mode='before')
     @classmethod
@@ -203,8 +230,8 @@ class MembroFamiliaResposta(MembroFamiliaBase):
 class CategoriaBase(BaseModel):
     nome: str
     tipo: TipoTransacao
-    cor: Optional[str] = "#0EA5E9"
-    icone: Optional[str] = "💰"
+    cor: str | None = "#0EA5E9"
+    icone: str | None = "💰"
 
 
 class CategoriaCriar(CategoriaBase):
@@ -212,9 +239,9 @@ class CategoriaCriar(CategoriaBase):
 
 
 class CategoriaAtualizar(BaseModel):
-    nome: Optional[str] = None
-    cor: Optional[str] = None
-    icone: Optional[str] = None
+    nome: str | None = None
+    cor: str | None = None
+    icone: str | None = None
 
 
 class CategoriaResposta(CategoriaBase):
@@ -231,9 +258,9 @@ class CategoriaResposta(CategoriaBase):
 class TransacaoBase(BaseModel):
     tipo: TipoTransacao
     valor: float = Field(gt=0, description="Valor deve ser maior que zero")
-    descricao: Optional[str] = None
+    descricao: str | None = None
     data_transacao: datetime
-    categoria_id: Optional[int] = None
+    categoria_id: int | None = None
 
 
 class TransacaoCriar(TransacaoBase):
@@ -241,12 +268,12 @@ class TransacaoCriar(TransacaoBase):
 
 
 class TransacaoAtualizar(BaseModel):
-    tipo: Optional[TipoTransacao] = None
-    valor: Optional[float] = Field(None, gt=0)
-    descricao: Optional[str] = None
-    data_transacao: Optional[datetime] = None
-    categoria_id: Optional[int] = None
-    status: Optional[StatusTransacao] = None
+    tipo: TipoTransacao | None = None
+    valor: float | None = Field(None, gt=0)
+    descricao: str | None = None
+    data_transacao: datetime | None = None
+    categoria_id: int | None = None
+    status: StatusTransacao | None = None
 
 
 class TransacaoResposta(TransacaoBase):
@@ -254,12 +281,12 @@ class TransacaoResposta(TransacaoBase):
     usuario_id: int
     status: StatusTransacao
     origem: OrigemRegistro
-    mensagem_original: Optional[str] = None
-    arquivo_url: Optional[str] = None
-    confianca_ia: Optional[float] = None
+    mensagem_original: str | None = None
+    arquivo_url: str | None = None
+    confianca_ia: float | None = None
     criado_em: datetime
     atualizado_em: datetime
-    categoria: Optional[CategoriaResposta] = None
+    categoria: CategoriaResposta | None = None
 
     class Config:
         from_attributes = True
@@ -288,10 +315,10 @@ class ResumoCategoria(BaseModel):
 class DashboardResposta(BaseModel):
     periodo: str
     resumo_geral: ResumoPeriodo
-    receitas_por_categoria: List[ResumoCategoria]
-    despesas_por_categoria: List[ResumoCategoria]
-    ultimas_transacoes: List[TransacaoResposta]
-    evolucao_mensal: List[dict]
+    receitas_por_categoria: list[ResumoCategoria]
+    despesas_por_categoria: list[ResumoCategoria]
+    ultimas_transacoes: list[TransacaoResposta]
+    evolucao_mensal: list[dict]
 
 
 # ==================== WhatsApp ====================
@@ -299,7 +326,7 @@ class DashboardResposta(BaseModel):
 class WhatsAppMessage(BaseModel):
     from_number: str
     message_type: str
-    text: Optional[str] = None
-    audio_url: Optional[str] = None
-    image_url: Optional[str] = None
+    text: str | None = None
+    audio_url: str | None = None
+    image_url: str | None = None
     timestamp: datetime

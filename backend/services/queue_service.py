@@ -8,8 +8,8 @@ Responsabilidades:
 """
 
 import logging
-from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+from datetime import UTC, datetime
+from typing import Any
 
 from arq import create_pool
 from arq.connections import RedisSettings
@@ -52,7 +52,7 @@ class QueueService:
             await self._pool.close()
             self._pool = None
 
-    async def enqueue_verificacao_usuario(self, usuario_id: int) -> Dict[str, Any]:
+    async def enqueue_verificacao_usuario(self, usuario_id: int) -> dict[str, Any]:
         """
         Enfileira verificação para um usuário específico.
 
@@ -75,7 +75,7 @@ class QueueService:
                 "job_id": job.job_id,
                 "usuario_id": usuario_id,
                 "status": "enqueued",
-                "enqueued_at": datetime.now(timezone.utc).isoformat()
+                "enqueued_at": datetime.now(UTC).isoformat()
             }
 
         except Exception as e:
@@ -86,7 +86,7 @@ class QueueService:
                 "status": "error"
             }
 
-    async def enqueue_verificacao_diaria(self) -> Dict[str, Any]:
+    async def enqueue_verificacao_diaria(self) -> dict[str, Any]:
         """Enfileira job de verificação diária manualmente."""
         try:
             pool = await self.get_pool()
@@ -98,14 +98,14 @@ class QueueService:
                 "job_id": job.job_id,
                 "tipo": "verificacao_diaria",
                 "status": "enqueued",
-                "enqueued_at": datetime.now(timezone.utc).isoformat()
+                "enqueued_at": datetime.now(UTC).isoformat()
             }
 
         except Exception as e:
             logger.error(f"[Queue] Erro ao enfileirar job: {e}")
             return {"erro": str(e), "status": "error"}
 
-    async def enqueue_verificacao_semanal(self) -> Dict[str, Any]:
+    async def enqueue_verificacao_semanal(self) -> dict[str, Any]:
         """Enfileira job de verificação semanal manualmente."""
         try:
             pool = await self.get_pool()
@@ -117,14 +117,14 @@ class QueueService:
                 "job_id": job.job_id,
                 "tipo": "verificacao_semanal",
                 "status": "enqueued",
-                "enqueued_at": datetime.now(timezone.utc).isoformat()
+                "enqueued_at": datetime.now(UTC).isoformat()
             }
 
         except Exception as e:
             logger.error(f"[Queue] Erro ao enfileirar job: {e}")
             return {"erro": str(e), "status": "error"}
 
-    async def enqueue_verificacao_mensal(self) -> Dict[str, Any]:
+    async def enqueue_verificacao_mensal(self) -> dict[str, Any]:
         """Enfileira job de verificação mensal manualmente."""
         try:
             pool = await self.get_pool()
@@ -136,14 +136,14 @@ class QueueService:
                 "job_id": job.job_id,
                 "tipo": "verificacao_mensal",
                 "status": "enqueued",
-                "enqueued_at": datetime.now(timezone.utc).isoformat()
+                "enqueued_at": datetime.now(UTC).isoformat()
             }
 
         except Exception as e:
             logger.error(f"[Queue] Erro ao enfileirar job: {e}")
             return {"erro": str(e), "status": "error"}
 
-    async def get_job_info(self, job_id: str) -> Optional[Dict[str, Any]]:
+    async def get_job_info(self, job_id: str) -> dict[str, Any] | None:
         """
         Busca informações de um job.
 
@@ -179,7 +179,7 @@ class QueueService:
             logger.error(f"[Queue] Erro ao buscar job {job_id}: {e}")
             return None
 
-    async def get_queue_info(self) -> Dict[str, Any]:
+    async def get_queue_info(self) -> dict[str, Any]:
         """
         Retorna informações sobre a fila.
 
@@ -202,7 +202,7 @@ class QueueService:
                 "queue_name": "default",
                 "pending_jobs": queue_len,
                 "redis_connected": True,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             }
 
         except Exception as e:

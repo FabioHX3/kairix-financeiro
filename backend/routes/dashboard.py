@@ -1,28 +1,28 @@
+from datetime import UTC, date, datetime, timedelta
+
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime, date, timedelta, timezone
-from typing import List, Optional
+from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.security import obter_usuario_atual
-from backend.models import Usuario, Transacao, Categoria, TipoTransacao, StatusTransacao
-from backend.schemas import DashboardResposta, ResumoPeriodo, ResumoCategoria
+from backend.models import Categoria, StatusTransacao, TipoTransacao, Transacao, Usuario
+from backend.schemas import DashboardResposta, ResumoCategoria, ResumoPeriodo
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 
 
 @router.get("", response_model=DashboardResposta)
 async def obter_dashboard(
-    mes: Optional[int] = Query(None, ge=1, le=12),
-    ano: Optional[int] = Query(None, ge=2000),
+    mes: int | None = Query(None, ge=1, le=12),
+    ano: int | None = Query(None, ge=2000),
     usuario_atual: Usuario = Depends(obter_usuario_atual),
     db: Session = Depends(get_db)
 ):
     """Obtém dados completos do dashboard"""
 
     if not mes or not ano:
-        hoje = datetime.now(timezone.utc)
+        hoje = datetime.now(UTC)
         mes = mes or hoje.month
         ano = ano or hoje.year
 
@@ -93,7 +93,7 @@ def _calcular_por_categoria(
     data_inicio: date,
     data_fim: date,
     total: float
-) -> List[ResumoCategoria]:
+) -> list[ResumoCategoria]:
     """Calcula resumo por categoria"""
 
     resultado = db.query(
@@ -133,7 +133,7 @@ def _calcular_por_categoria(
     return resumos
 
 
-def _calcular_evolucao_mensal(db: Session, usuario_id: int, mes_atual: int, ano_atual: int) -> List[dict]:
+def _calcular_evolucao_mensal(db: Session, usuario_id: int, mes_atual: int, ano_atual: int) -> list[dict]:
     """Calcula evolução dos últimos 6 meses"""
 
     evolucao = []

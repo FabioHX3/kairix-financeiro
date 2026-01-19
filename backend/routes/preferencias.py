@@ -8,15 +8,15 @@ Endpoints para gerenciar preferências do assistente IA:
 - Auto-confirmação
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
-from typing import Optional
 from enum import Enum
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.security import obter_usuario_atual
-from backend.models import Usuario, UserPreferences, PersonalidadeIA
+from backend.models import UserPreferences, Usuario
 from backend.services.agents.learning_agent import learning_agent
 
 router = APIRouter(prefix="/api/preferencias", tags=["Preferencias"])
@@ -49,16 +49,16 @@ class PreferenciasResponse(BaseModel):
 
 
 class PreferenciasUpdate(BaseModel):
-    personalidade: Optional[PersonalidadeEnum] = None
-    alertar_vencimentos: Optional[bool] = None
-    dias_antes_vencimento: Optional[int] = Field(None, ge=1, le=30)
-    alertar_gastos_anomalos: Optional[bool] = None
-    limite_anomalia_percentual: Optional[int] = Field(None, ge=10, le=100)
-    resumo_diario: Optional[bool] = None
-    resumo_semanal: Optional[bool] = None
-    resumo_mensal: Optional[bool] = None
-    horario_resumo: Optional[str] = Field(None, pattern=r"^\d{2}:\d{2}$")
-    auto_confirmar_confianca: Optional[float] = Field(None, ge=0.5, le=1.0)
+    personalidade: PersonalidadeEnum | None = None
+    alertar_vencimentos: bool | None = None
+    dias_antes_vencimento: int | None = Field(None, ge=1, le=30)
+    alertar_gastos_anomalos: bool | None = None
+    limite_anomalia_percentual: int | None = Field(None, ge=10, le=100)
+    resumo_diario: bool | None = None
+    resumo_semanal: bool | None = None
+    resumo_mensal: bool | None = None
+    horario_resumo: str | None = Field(None, pattern=r"^\d{2}:\d{2}$")
+    auto_confirmar_confianca: float | None = Field(None, ge=0.5, le=1.0)
 
 
 class PadraoResponse(BaseModel):

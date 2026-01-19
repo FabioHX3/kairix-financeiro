@@ -8,17 +8,12 @@ Responsabilidades:
 - Enviar notificacoes via WhatsApp
 """
 
-from typing import Dict, List, Optional
-from datetime import datetime, timedelta, timezone
-from sqlalchemy.orm import Session
-from sqlalchemy import func, extract, and_
+from datetime import UTC, datetime, timedelta
 
-from backend.services.agents.base_agent import (
-    BaseAgent,
-    AgentContext,
-    AgentResponse,
-    IntentType
-)
+from sqlalchemy import extract, func
+from sqlalchemy.orm import Session
+
+from backend.services.agents.base_agent import AgentContext, AgentResponse, BaseAgent
 from backend.utils import fmt_valor
 
 
@@ -60,7 +55,7 @@ class ProactiveAgent(BaseAgent):
         db: Session,
         usuario_id: int,
         dias_antecedencia: int = 3
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Busca contas que vencem nos proximos N dias.
 
@@ -74,7 +69,7 @@ class ProactiveAgent(BaseAgent):
         """
         from backend.models import ScheduledBill, StatusConta
 
-        hoje = datetime.now(timezone.utc).date()
+        hoje = datetime.now(UTC).date()
         data_limite = hoje + timedelta(days=dias_antecedencia)
 
         contas = db.query(ScheduledBill).filter(
@@ -106,7 +101,7 @@ class ProactiveAgent(BaseAgent):
         self,
         db: Session,
         usuario_id: int
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Busca contas que ja venceram e nao foram pagas.
 
@@ -115,7 +110,7 @@ class ProactiveAgent(BaseAgent):
         """
         from backend.models import ScheduledBill, StatusConta
 
-        hoje = datetime.now(timezone.utc).date()
+        hoje = datetime.now(UTC).date()
 
         contas = db.query(ScheduledBill).filter(
             ScheduledBill.usuario_id == usuario_id,
@@ -143,10 +138,10 @@ class ProactiveAgent(BaseAgent):
 
     def formatar_alerta_contas(
         self,
-        contas_vencer: List[Dict],
-        contas_atrasadas: List[Dict],
+        contas_vencer: list[dict],
+        contas_atrasadas: list[dict],
         personalidade: str = "amigavel"
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Formata mensagem de alerta de contas.
 
@@ -221,7 +216,7 @@ class ProactiveAgent(BaseAgent):
         db: Session,
         usuario_id: int,
         percentual_limite: float = 0.30
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Detecta gastos que estao muito acima da media.
 
@@ -233,9 +228,9 @@ class ProactiveAgent(BaseAgent):
         Returns:
             Lista de categorias com gastos anomalos
         """
-        from backend.models import Transacao, Categoria, TipoTransacao
+        from backend.models import Categoria, TipoTransacao, Transacao
 
-        hoje = datetime.now(timezone.utc)
+        hoje = datetime.now(UTC)
         mes_atual = hoje.month
         ano_atual = hoje.year
 
@@ -307,9 +302,9 @@ class ProactiveAgent(BaseAgent):
 
     def formatar_alerta_anomalias(
         self,
-        anomalias: List[Dict],
+        anomalias: list[dict],
         personalidade: str = "amigavel"
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Formata mensagem de alerta de gastos anomalos.
 
@@ -348,16 +343,16 @@ class ProactiveAgent(BaseAgent):
         self,
         db: Session,
         usuario_id: int
-    ) -> Dict:
+    ) -> dict:
         """
         Gera resumo do dia anterior.
 
         Returns:
             Dict com transacoes e totais do dia
         """
-        from backend.models import Transacao, Categoria, TipoTransacao
+        from backend.models import Categoria, TipoTransacao, Transacao
 
-        ontem = datetime.now(timezone.utc).date() - timedelta(days=1)
+        ontem = datetime.now(UTC).date() - timedelta(days=1)
 
         transacoes = db.query(Transacao).filter(
             Transacao.usuario_id == usuario_id,
@@ -391,16 +386,16 @@ class ProactiveAgent(BaseAgent):
         self,
         db: Session,
         usuario_id: int
-    ) -> Dict:
+    ) -> dict:
         """
         Gera resumo da semana anterior.
 
         Returns:
             Dict com totais e principais categorias da semana
         """
-        from backend.models import Transacao, Categoria, TipoTransacao
+        from backend.models import Categoria, TipoTransacao, Transacao
 
-        hoje = datetime.now(timezone.utc).date()
+        hoje = datetime.now(UTC).date()
         # Semana anterior (segunda a domingo)
         dias_desde_segunda = hoje.weekday()
         fim_semana = hoje - timedelta(days=dias_desde_segunda + 1)  # Domingo passado
@@ -450,17 +445,16 @@ class ProactiveAgent(BaseAgent):
         self,
         db: Session,
         usuario_id: int
-    ) -> Dict:
+    ) -> dict:
         """
         Gera resumo do mes anterior completo.
 
         Returns:
             Dict com analise completa do mes
         """
-        from backend.models import Transacao, Categoria, TipoTransacao
         from backend.services.agents.consultant_agent import consultant_agent
 
-        hoje = datetime.now(timezone.utc)
+        hoje = datetime.now(UTC)
 
         # Mes anterior
         if hoje.month == 1:
@@ -491,7 +485,7 @@ class ProactiveAgent(BaseAgent):
 
     def formatar_resumo(
         self,
-        resumo: Dict,
+        resumo: dict,
         tipo: str,  # "diario", "semanal", "mensal"
         personalidade: str = "amigavel"
     ) -> str:
@@ -566,7 +560,7 @@ class ProactiveAgent(BaseAgent):
         self,
         db: Session,
         usuario_id: int
-    ) -> Dict:
+    ) -> dict:
         """
         Executa todas as verificacoes diarias para um usuario.
 
@@ -627,7 +621,7 @@ class ProactiveAgent(BaseAgent):
         self,
         db: Session,
         usuario_id: int
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """
         Executa verificacao semanal (toda segunda-feira).
 
@@ -655,7 +649,7 @@ class ProactiveAgent(BaseAgent):
         self,
         db: Session,
         usuario_id: int
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """
         Executa verificacao mensal (todo dia 1).
 

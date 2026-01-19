@@ -1,11 +1,11 @@
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
 
 from backend.core.database import get_db
 from backend.core.security import obter_usuario_atual
-from backend.models import Usuario, MembroFamilia
-from backend.schemas import MembroFamiliaCriar, MembroFamiliaResposta, MembroFamiliaAtualizar
+from backend.models import MembroFamilia, Usuario
+from backend.schemas import MembroFamiliaAtualizar, MembroFamiliaCriar, MembroFamiliaResposta
 
 router = APIRouter(prefix="/api/familia", tags=["Família"])
 
@@ -23,7 +23,7 @@ async def criar_membro(
     membro_existente = db.query(MembroFamilia).filter(
         MembroFamilia.usuario_id == usuario_atual.id,
         MembroFamilia.whatsapp == whatsapp_limpo,
-        MembroFamilia.ativo == True
+        MembroFamilia.ativo.is_(True)
     ).first()
 
     if membro_existente:
@@ -45,7 +45,7 @@ async def criar_membro(
     return novo_membro
 
 
-@router.get("", response_model=List[MembroFamiliaResposta])
+@router.get("", response_model=list[MembroFamiliaResposta])
 async def listar_membros(
     usuario_atual: Usuario = Depends(obter_usuario_atual),
     db: Session = Depends(get_db)
@@ -54,7 +54,7 @@ async def listar_membros(
 
     membros = db.query(MembroFamilia).filter(
         MembroFamilia.usuario_id == usuario_atual.id,
-        MembroFamilia.ativo == True
+        MembroFamilia.ativo.is_(True)
     ).all()
 
     return membros

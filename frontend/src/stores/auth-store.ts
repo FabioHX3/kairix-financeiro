@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Usuario } from '@/types/models'
+import { logout as apiLogout } from '@/lib/api/client'
 
 interface AuthState {
   user: Usuario | null
@@ -12,7 +13,8 @@ interface AuthState {
   setAuth: (user: Usuario, token: string) => void
   setUser: (user: Usuario) => void
   setLoading: (loading: boolean) => void
-  logout: () => void
+  logout: () => Promise<void>
+  clearAuth: () => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -43,7 +45,19 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: loading })
       },
 
-      logout: () => {
+      logout: async () => {
+        // Call API logout to invalidate tokens on server
+        await apiLogout()
+        // The apiLogout already clears localStorage and redirects
+        set({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+          isLoading: false,
+        })
+      },
+
+      clearAuth: () => {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('token')
         }

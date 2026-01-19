@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
@@ -25,7 +25,7 @@ import { useCategories } from '@/hooks/use-categories'
 import { useCreateTransaction, useUpdateTransaction } from '@/hooks/use-transactions'
 import { transactionSchema, type TransactionFormData } from '@/lib/utils/validators'
 import { toISODate } from '@/lib/utils/date'
-import type { Transacao, TipoTransacao } from '@/types/models'
+import type { Transacao } from '@/types/models'
 
 interface TransactionFormProps {
   transaction?: Transacao
@@ -52,8 +52,11 @@ export function TransactionForm({ transaction, onSuccess, onCancel }: Transactio
 
   const selectedTipo = form.watch('tipo')
 
-  // Filter categories by type
-  const filteredCategories = categories?.filter((cat) => cat.tipo === selectedTipo) || []
+  // Filter categories by type - memoized to prevent unnecessary re-renders
+  const filteredCategories = useMemo(
+    () => categories?.filter((cat) => cat.tipo === selectedTipo) || [],
+    [categories, selectedTipo]
+  )
 
   // Populate form when editing
   useEffect(() => {

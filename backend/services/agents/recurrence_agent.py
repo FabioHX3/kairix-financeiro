@@ -9,17 +9,13 @@ Responsabilidades:
 """
 
 import unicodedata
-from typing import Optional, Dict, List, Tuple
-from datetime import datetime, timedelta, timezone
 from collections import defaultdict
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from datetime import UTC, datetime, timedelta
+from typing import ClassVar
 
-from backend.services.agents.base_agent import (
-    BaseAgent,
-    AgentContext,
-    AgentResponse
-)
+from sqlalchemy.orm import Session
+
+from backend.services.agents.base_agent import AgentContext, AgentResponse, BaseAgent
 
 
 class RecurrenceAgent(BaseAgent):
@@ -46,7 +42,7 @@ class RecurrenceAgent(BaseAgent):
     TOLERANCIA_VALOR = 0.15  # 15%
 
     # Intervalos de frequencia em dias
-    FREQUENCIAS = {
+    FREQUENCIAS: ClassVar[dict[str, tuple[int, int]]] = {
         "diaria": (1, 1),
         "semanal": (6, 8),
         "quinzenal": (13, 17),
@@ -79,7 +75,7 @@ class RecurrenceAgent(BaseAgent):
         db: Session,
         usuario_id: int,
         dias: int = 180
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Analisa historico de transacoes e detecta possiveis recorrencias.
 
@@ -91,9 +87,9 @@ class RecurrenceAgent(BaseAgent):
         Returns:
             Lista de recorrencias detectadas
         """
-        from backend.models import Transacao, TipoTransacao
+        from backend.models import Transacao
 
-        data_inicio = datetime.now(timezone.utc) - timedelta(days=dias)
+        data_inicio = datetime.now(UTC) - timedelta(days=dias)
 
         # Busca transacoes do periodo
         transacoes = db.query(Transacao).filter(
@@ -135,7 +131,7 @@ class RecurrenceAgent(BaseAgent):
 
         return recorrencias_detectadas
 
-    def _analisar_padrao(self, transacoes: List) -> Optional[Dict]:
+    def _analisar_padrao(self, transacoes: list) -> dict | None:
         """
         Analisa lista de transacoes e detecta padrao de recorrencia.
 
@@ -152,10 +148,7 @@ class RecurrenceAgent(BaseAgent):
         valor_max = max(valores)
 
         # Verifica variacao de valor
-        if valor_medio > 0:
-            variacao_valor = (valor_max - valor_min) / valor_medio
-        else:
-            variacao_valor = 0
+        variacao_valor = (valor_max - valor_min) / valor_medio if valor_medio > 0 else 0
 
         # Calcula intervalos entre transacoes
         datas = sorted([t.data_transacao for t in transacoes])
@@ -215,7 +208,7 @@ class RecurrenceAgent(BaseAgent):
             "regularidade_dia": round(regularidade_dia, 2)
         }
 
-    def _detectar_frequencia(self, intervalo_medio: float) -> Optional[str]:
+    def _detectar_frequencia(self, intervalo_medio: float) -> str | None:
         """Detecta frequencia baseada no intervalo medio"""
         for freq, (min_dias, max_dias) in self.FREQUENCIAS.items():
             if min_dias <= intervalo_medio <= max_dias:
@@ -241,7 +234,7 @@ class RecurrenceAgent(BaseAgent):
         ocorrencias: int,
         variacao_valor: float,
         regularidade_dia: float,
-        intervalos: List[int],
+        intervalos: list[int],
         intervalo_esperado: int
     ) -> float:
         """
@@ -276,7 +269,7 @@ class RecurrenceAgent(BaseAgent):
         self,
         ultima: datetime,
         frequencia: str,
-        dia_mes: int = None
+        dia_mes: int | None = None
     ) -> datetime:
         """Calcula proxima data esperada"""
         if frequencia == "diaria":
@@ -314,8 +307,8 @@ class RecurrenceAgent(BaseAgent):
         self,
         db: Session,
         usuario_id: int,
-        dados: Dict
-    ) -> Dict:
+        dados: dict
+    ) -> dict:
         """
         Registra uma recorrencia detectada no banco.
 
@@ -327,9 +320,7 @@ class RecurrenceAgent(BaseAgent):
         Returns:
             Dict com recorrencia criada
         """
-        from backend.models import (
-            RecurringTransaction, TipoTransacao, FrequenciaRecorrencia
-        )
+        from backend.models import FrequenciaRecorrencia, RecurringTransaction, TipoTransacao
 
         # Verifica se ja existe
         existente = db.query(RecurringTransaction).filter(
@@ -346,7 +337,7 @@ class RecurrenceAgent(BaseAgent):
             existente.ultima_ocorrencia = dados.get("ultima_ocorrencia")
             existente.proxima_esperada = dados.get("proxima_esperada")
             existente.confianca_deteccao = dados["confianca"]
-            existente.atualizado_em = datetime.now(timezone.utc)
+            existente.atualizado_em = datetime.now(UTC)
 
             db.commit()
 
@@ -395,9 +386,9 @@ class RecurrenceAgent(BaseAgent):
         db: Session,
         usuario_id: int,
         apenas_ativas: bool = True
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Lista recorrencias do usuario"""
-        from backend.models import RecurringTransaction, Categoria, StatusRecorrencia
+        from backend.models import Categoria, RecurringTransaction, StatusRecorrencia
 
         query = db.query(RecurringTransaction).filter(
             RecurringTransaction.usuario_id == usuario_id
@@ -434,9 +425,9 @@ class RecurrenceAgent(BaseAgent):
         self,
         db: Session,
         usuario_id: int,
-        mes: int = None,
-        ano: int = None
-    ) -> Dict:
+        mes: int | None = None,
+        ano: int | None = None
+    ) -> dict:
         """
         Obtem previsao de gastos/receitas para o mes baseado em recorrencias.
 
@@ -446,9 +437,9 @@ class RecurrenceAgent(BaseAgent):
         from backend.models import RecurringTransaction, StatusRecorrencia, TipoTransacao
 
         if mes is None:
-            mes = datetime.now(timezone.utc).month
+            mes = datetime.now(UTC).month
         if ano is None:
-            ano = datetime.now(timezone.utc).year
+            ano = datetime.now(UTC).year
 
         # Busca recorrencias ativas
         recorrencias = db.query(RecurringTransaction).filter(
@@ -522,7 +513,7 @@ class RecurrenceAgent(BaseAgent):
         descricao: str,
         valor: float,
         tipo: str
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """
         Verifica se nova transacao corresponde a uma recorrencia existente.
 

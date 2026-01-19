@@ -36,7 +36,7 @@ const frequencyLabels: Record<string, string> = {
 export default function MetasPage() {
   const [deleteRecurrence, setDeleteRecurrence] = useState<RecurringTransaction | undefined>()
   const { data: recurrences, isLoading: loadingRecurrences } = useRecurrences()
-  const { data: forecast, isLoading: loadingForecast } = useForecast()
+  const { data: _forecast, isLoading: _loadingForecast } = useForecast()
   const deleteMutation = useDeleteRecurrence()
   const detectMutation = useDetectRecurrences()
 

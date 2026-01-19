@@ -1,4 +1,4 @@
-import api, { setAuthToken, clearAuthToken } from './client'
+import api, { setAuthToken } from './client'
 import type {
   LoginRequest,
   LoginResponse,
@@ -40,10 +40,4 @@ export async function changePassword(senhaAtual: string, senhaNova: string): Pro
   })
 }
 
-// Logout
-export function logout(): void {
-  clearAuthToken()
-  if (typeof window !== 'undefined') {
-    window.location.href = '/login'
-  }
-}
+// Note: logout is exported from client.ts to properly call the backend API

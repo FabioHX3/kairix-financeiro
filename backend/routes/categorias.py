@@ -1,16 +1,16 @@
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
 
 from backend.core.database import get_db
 from backend.core.security import obter_usuario_atual
-from backend.models import Usuario, Categoria, TipoTransacao
-from backend.schemas import CategoriaCriar, CategoriaResposta, CategoriaAtualizar
+from backend.models import Categoria, TipoTransacao, Usuario
+from backend.schemas import CategoriaAtualizar, CategoriaCriar, CategoriaResposta
 
 router = APIRouter(prefix="/api/categorias", tags=["Categorias"])
 
 
-@router.get("", response_model=List[CategoriaResposta])
+@router.get("", response_model=list[CategoriaResposta])
 async def listar_categorias(
     tipo: TipoTransacao = None,
     usuario_atual: Usuario = Depends(obter_usuario_atual),
@@ -19,7 +19,7 @@ async def listar_categorias(
     """Lista categorias (padrão + do usuário)"""
 
     query = db.query(Categoria).filter(
-        (Categoria.padrao == True) | (Categoria.usuario_id == usuario_atual.id)
+        (Categoria.padrao.is_(True)) | (Categoria.usuario_id == usuario_atual.id)
     )
 
     if tipo:

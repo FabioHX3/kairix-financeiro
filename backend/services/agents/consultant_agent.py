@@ -9,17 +9,12 @@ Responsabilidades:
 - Recorrencias e previsoes
 """
 
-from typing import Dict, List, Optional
-from datetime import datetime, timedelta, timezone
-from sqlalchemy.orm import Session
-from sqlalchemy import func, extract
+from datetime import UTC, datetime
 
-from backend.services.agents.base_agent import (
-    BaseAgent,
-    AgentContext,
-    AgentResponse,
-    IntentType
-)
+from sqlalchemy import extract, func
+from sqlalchemy.orm import Session
+
+from backend.services.agents.base_agent import AgentContext, AgentResponse, BaseAgent, IntentType
 from backend.utils import fmt_valor
 
 
@@ -58,9 +53,9 @@ class ConsultantAgent(BaseAgent):
         self,
         db: Session,
         usuario_id: int,
-        mes: int = None,
-        ano: int = None
-    ) -> Dict:
+        mes: int | None = None,
+        ano: int | None = None
+    ) -> dict:
         """
         Calcula saldo do usuario (receitas - despesas).
 
@@ -73,12 +68,12 @@ class ConsultantAgent(BaseAgent):
         Returns:
             Dict com total_receitas, total_despesas, saldo
         """
-        from backend.models import Transacao, TipoTransacao
+        from backend.models import TipoTransacao, Transacao
 
         if mes is None:
-            mes = datetime.now(timezone.utc).month
+            mes = datetime.now(UTC).month
         if ano is None:
-            ano = datetime.now(timezone.utc).year
+            ano = datetime.now(UTC).year
 
         # Query base
         query = db.query(
@@ -114,10 +109,10 @@ class ConsultantAgent(BaseAgent):
         self,
         db: Session,
         usuario_id: int,
-        mes: int = None,
-        ano: int = None,
+        mes: int | None = None,
+        ano: int | None = None,
         tipo: str = "despesa"
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Retorna gastos agrupados por categoria.
 
@@ -131,12 +126,12 @@ class ConsultantAgent(BaseAgent):
         Returns:
             Lista de categorias com totais
         """
-        from backend.models import Transacao, Categoria, TipoTransacao
+        from backend.models import Categoria, TipoTransacao, Transacao
 
         if mes is None:
-            mes = datetime.now(timezone.utc).month
+            mes = datetime.now(UTC).month
         if ano is None:
-            ano = datetime.now(timezone.utc).year
+            ano = datetime.now(UTC).year
 
         tipo_enum = TipoTransacao.DESPESA if tipo == "despesa" else TipoTransacao.RECEITA
 
@@ -176,7 +171,7 @@ class ConsultantAgent(BaseAgent):
         db: Session,
         usuario_id: int,
         limite: int = 10
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Retorna ultimas transacoes do usuario.
 
@@ -188,7 +183,7 @@ class ConsultantAgent(BaseAgent):
         Returns:
             Lista de transacoes
         """
-        from backend.models import Transacao, Categoria
+        from backend.models import Categoria, Transacao
 
         transacoes = db.query(Transacao).filter(
             Transacao.usuario_id == usuario_id,
@@ -216,14 +211,14 @@ class ConsultantAgent(BaseAgent):
         self,
         db: Session,
         usuario_id: int
-    ) -> Dict:
+    ) -> dict:
         """
         Compara mes atual com mes anterior.
 
         Returns:
             Dict com dados de ambos os meses e variacao
         """
-        hoje = datetime.now(timezone.utc)
+        hoje = datetime.now(UTC)
         mes_atual = hoje.month
         ano_atual = hoje.year
 
@@ -267,7 +262,7 @@ class ConsultantAgent(BaseAgent):
         self,
         db: Session,
         usuario_id: int
-    ) -> Dict:
+    ) -> dict:
         """
         Retorna resumo completo das financas.
 
@@ -288,7 +283,7 @@ class ConsultantAgent(BaseAgent):
 
     def formatar_resumo_texto(
         self,
-        resumo: Dict,
+        resumo: dict,
         personalidade: str = "amigavel"
     ) -> str:
         """
@@ -343,14 +338,14 @@ class ConsultantAgent(BaseAgent):
         db: Session,
         usuario_id: int,
         codigo: str
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """
         Busca transacao pelo codigo.
 
         Returns:
             Dict com dados da transacao ou None
         """
-        from backend.models import Transacao, Categoria
+        from backend.models import Categoria, Transacao
 
         transacao = db.query(Transacao).filter(
             Transacao.usuario_id == usuario_id,

@@ -1,13 +1,14 @@
-import logging
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, ForeignKey, Enum
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
-from datetime import datetime
 import enum
+import logging
 import secrets
 import string
+from datetime import datetime
 
-from backend.core.database import engine, SessionLocal
+from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+
+from backend.core.database import SessionLocal, engine
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,34 @@ class Usuario(Base):
     recorrencias = relationship("RecurringTransaction", back_populates="usuario")
     contas_agendadas = relationship("ScheduledBill", back_populates="usuario")
     agendamentos = relationship("Agendamento", back_populates="usuario", uselist=False)
+    refresh_tokens = relationship("RefreshToken", back_populates="usuario", cascade="all, delete-orphan")
+
+
+class RefreshToken(Base):
+    """
+    Tabela para armazenar refresh tokens.
+    Permite invalidação seletiva e controle de sessões.
+    """
+    __tablename__ = "refresh_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    token_hash = Column(String(255), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    revoked_at = Column(DateTime, nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    ip_address = Column(String(45), nullable=True)
+
+    # Relacionamento
+    usuario = relationship("Usuario", back_populates="refresh_tokens")
+
+    @property
+    def is_valid(self) -> bool:
+        """Verifica se o token ainda é válido."""
+        if self.revoked_at:
+            return False
+        return datetime.utcnow() < self.expires_at
 
 
 class MembroFamilia(Base):
@@ -407,7 +436,7 @@ def inserir_categorias_padrao():
     """Insere categorias padrão no banco"""
     db = SessionLocal()
     try:
-        categorias_existentes = db.query(Categoria).filter(Categoria.padrao == True).count()
+        categorias_existentes = db.query(Categoria).filter(Categoria.padrao.is_(True)).count()
 
         if categorias_existentes == 0:
             for cat_data in CATEGORIAS_PADRAO:

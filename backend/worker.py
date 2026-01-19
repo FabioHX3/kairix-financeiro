@@ -15,8 +15,7 @@ Para rodar com hot-reload (dev):
 """
 
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from arq import cron
@@ -78,7 +77,7 @@ async def job_verificacao_diaria(ctx: dict) -> dict:
     resultados = {"usuarios_processados": 0, "alertas_enviados": 0, "erros": 0}
 
     try:
-        usuarios = db.query(Usuario).filter(Usuario.ativo == True).all()
+        usuarios = db.query(Usuario).filter(Usuario.ativo.is_(True)).all()
 
         for usuario in usuarios:
             try:
@@ -127,7 +126,7 @@ async def job_verificacao_semanal(ctx: dict) -> dict:
     resultados = {"usuarios_processados": 0, "resumos_enviados": 0, "erros": 0}
 
     try:
-        usuarios = db.query(Usuario).filter(Usuario.ativo == True).all()
+        usuarios = db.query(Usuario).filter(Usuario.ativo.is_(True)).all()
 
         for usuario in usuarios:
             try:
@@ -174,7 +173,7 @@ async def job_verificacao_mensal(ctx: dict) -> dict:
     resultados = {"usuarios_processados": 0, "resumos_enviados": 0, "erros": 0}
 
     try:
-        usuarios = db.query(Usuario).filter(Usuario.ativo == True).all()
+        usuarios = db.query(Usuario).filter(Usuario.ativo.is_(True)).all()
 
         for usuario in usuarios:
             try:
@@ -211,9 +210,9 @@ async def job_verificacao_usuario(ctx: dict, usuario_id: int) -> dict:
     Job para verificação sob demanda de um usuário específico.
     Pode ser enfileirado via API.
     """
+    from backend.models import Usuario
     from backend.services.agents.proactive_agent import proactive_agent
     from backend.services.whatsapp import whatsapp_service
-    from backend.models import Usuario
 
     logger.info(f"[Worker] Verificação sob demanda para usuário {usuario_id}")
 
@@ -253,7 +252,7 @@ async def job_verificacao_usuario(ctx: dict, usuario_id: int) -> dict:
 async def startup(ctx: dict):
     """Executado quando o worker inicia."""
     logger.info("[Worker] Iniciando worker arq...")
-    logger.info(f"[Worker] Timezone: America/Sao_Paulo")
+    logger.info("[Worker] Timezone: America/Sao_Paulo")
     logger.info("[Worker] Jobs agendados:")
     logger.info("  - verificacao_diaria: diariamente às 8h")
     logger.info("  - verificacao_semanal: segunda-feira às 9h")
@@ -280,7 +279,7 @@ class WorkerSettings:
     on_shutdown = shutdown
 
     # Jobs disponíveis para enfileiramento manual
-    functions = [
+    functions = [  # noqa: RUF012 - Required by arq library
         job_verificacao_diaria,
         job_verificacao_semanal,
         job_verificacao_mensal,
@@ -288,7 +287,7 @@ class WorkerSettings:
     ]
 
     # Jobs agendados (cron)
-    cron_jobs = [
+    cron_jobs = [  # noqa: RUF012 - Required by arq library
         # Diário às 8h (horário de São Paulo)
         cron(
             job_verificacao_diaria,

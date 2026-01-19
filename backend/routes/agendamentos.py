@@ -1,12 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from datetime import datetime
-from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.security import obter_usuario_atual
-from backend.models import Usuario, Agendamento, TipoAgendamento
+from backend.models import Agendamento, TipoAgendamento, Usuario
 
 router = APIRouter(prefix="/api/agendamentos", tags=["Agendamentos"])
 
@@ -14,8 +14,8 @@ router = APIRouter(prefix="/api/agendamentos", tags=["Agendamentos"])
 class AgendamentoCreate(BaseModel):
     tipo: str  # 'diario', 'semanal', 'mensal'
     hora: str  # HH:MM
-    dia_semana: Optional[int] = None
-    dia_mes: Optional[int] = None
+    dia_semana: int | None = None
+    dia_mes: int | None = None
     ativo: bool = True
 
 
@@ -24,8 +24,8 @@ class AgendamentoResposta(BaseModel):
     usuario_id: int
     tipo: str
     hora: str
-    dia_semana: Optional[int] = None
-    dia_mes: Optional[int] = None
+    dia_semana: int | None = None
+    dia_mes: int | None = None
     ativo: bool
     criado_em: datetime
 
@@ -102,7 +102,7 @@ async def criar_agendamento(
     )
 
 
-@router.get("", response_model=Optional[AgendamentoResposta])
+@router.get("", response_model=AgendamentoResposta | None)
 async def obter_agendamento(
     usuario_atual: Usuario = Depends(obter_usuario_atual),
     db: Session = Depends(get_db)
